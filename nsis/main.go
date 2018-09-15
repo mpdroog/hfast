@@ -32,8 +32,8 @@ func replace(file string, j Job) error {
 	lines := strings.Split(string(input), "\n")
 	for i, line := range lines {
 		line = strings.Replace(line, "{USER}", j.User, -1)
-                line = strings.Replace(line, "{user}", j.User, -1)
-                line = strings.Replace(line, "{pass}", j.Pass, -1)
+		line = strings.Replace(line, "{user}", j.User, -1)
+		line = strings.Replace(line, "{pass}", j.Pass, -1)
 		lines[i] = strings.Replace(line, "{PASS}", j.Pass, -1)
 	}
 	output := strings.Join(lines, "\n")
@@ -81,12 +81,12 @@ func build(w http.ResponseWriter, r *http.Request) {
 		log.Fatal(err)
 	}
 	// HACKY
-        if err := replace("servers.xml", j); err != nil {
-                log.Fatal(err)
-        }
-        if err := replace("grabit.reg", j); err != nil {
-                log.Fatal(err)
-        }
+	if err := replace("servers.xml", j); err != nil {
+		log.Fatal(err)
+	}
+	if err := replace("grabit.reg", j); err != nil {
+		log.Fatal(err)
+	}
 
 	cmd := exec.Command("/usr/bin/makensis", "main.nsis")
 	stdout, err := cmd.StdoutPipe()

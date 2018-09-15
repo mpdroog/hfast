@@ -1,8 +1,8 @@
 package main
 
 import (
-        "net/http"
-        "github.com/yookoala/gofast"
+	"github.com/yookoala/gofast"
+	"net/http"
 )
 
 // NewHandler returns a fastcgi web server implementation as an http.Handler

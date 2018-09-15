@@ -3,14 +3,14 @@ package main
 import (
 	"crypto/tls"
 	"fmt"
+	"github.com/NYTimes/gziphandler"
 	"github.com/VojtechVitek/ratelimit"
 	"github.com/coreos/go-systemd/daemon"
 	"golang.org/x/crypto/acme/autocert"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"time"
-	"github.com/NYTimes/gziphandler"
-	"io/ioutil"
 )
 
 var assets = []string{
@@ -76,23 +76,23 @@ func main() {
 		action := gziphandler.GzipHandler(limit(NewHandler(fmt.Sprintf("/var/www/%s/action/index.php", domain), "tcp", "127.0.0.1:8000")))
 
 		mux := &http.ServeMux{}
-	        mux.Handle("/action/", action)
+		mux.Handle("/action/", action)
 		mux.Handle("/", fs)
 		muxs[domain] = mux
 	}
 
 	m := &autocert.Manager{
-                Cache:      autocert.DirCache("/tmp/certs"),
-                Prompt:     autocert.AcceptTOS,
-                HostPolicy: autocert.HostWhitelist(domains...),
-        }
+		Cache:      autocert.DirCache("/tmp/certs"),
+		Prompt:     autocert.AcceptTOS,
+		HostPolicy: autocert.HostWhitelist(domains...),
+	}
 	s := &http.Server{
-                Addr:         ":443",
-                TLSConfig:    &tls.Config{GetCertificate: m.GetCertificate},
-                Handler:      vhost(muxs),
-                ReadTimeout:  5 * time.Second,
-                WriteTimeout: 10 * time.Second,
-        }
+		Addr:         ":443",
+		TLSConfig:    &tls.Config{GetCertificate: m.GetCertificate},
+		Handler:      vhost(muxs),
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+	}
 
 	go http.ListenAndServe("", m.HTTPHandler(nil))
 
