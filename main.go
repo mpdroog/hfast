@@ -3,19 +3,28 @@ package main
 import (
 	"crypto/tls"
 	"fmt"
+	"github.com/BurntSushi/toml"
 	"github.com/NYTimes/gziphandler"
 	"github.com/VojtechVitek/ratelimit"
 	"github.com/VojtechVitek/ratelimit/memory"
 	"github.com/coreos/go-systemd/daemon"
+	"github.com/mpdroog/hfast/proxy"
 	"golang.org/x/crypto/acme/autocert"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"time"
 )
 
-var assets = []string{
-	"/css/bootstrap.min.css", "/css/design.css", "/img/bg.jpg",
+type Overrides struct {
+	Proxy string // Just forward to given addr
+}
+
+var pushAssets map[string][]string
+
+func init() {
+	pushAssets = make(map[string][]string)
 }
 
 func push(h http.Handler) http.Handler {
@@ -23,7 +32,7 @@ func push(h http.Handler) http.Handler {
 		w.Header().Set("Vary", "Accept-Encoding")
 		w.Header().Set("x-frame-options", "SAMEORIGIN")
 		w.Header().Set("x-xss-protection", "1; mode=block")
-		if r.URL.Path == "/" {
+		if assets, ok := pushAssets[r.Host]; r.URL.Path == "/" && ok {
 			if pusher, ok := w.(http.Pusher); ok {
 				for _, asset := range assets {
 					if err := pusher.Push(asset, nil); err != nil {
@@ -46,6 +55,9 @@ func vhost(muxs map[string]*http.ServeMux) http.HandlerFunc {
 			return
 		}
 		m.ServeHTTP(w, r)
+		// Strip off sensitive info
+		w.Header().Del("X-Powered-By")
+		w.Header().Set("Server", "HFast")
 	}
 }
 
@@ -64,6 +76,53 @@ func getDomains() ([]string, error) {
 	return out, nil
 }
 
+func exists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return true, err
+}
+
+func getPush(path string) ([]string, error) {
+	ok, err := exists(path)
+	if err != nil || !ok {
+		return nil, err
+	}
+
+	fileInfo, err := ioutil.ReadDir(path)
+	if err != nil {
+		return nil, err
+	}
+
+	out := []string{}
+	for _, file := range fileInfo {
+		if file.IsDir() {
+			out = append(out, file.Name())
+		}
+	}
+	return out, nil
+}
+
+func getOverrides(path string) (Overrides, error) {
+	c := Overrides{}
+
+	if _, e := os.Stat(path); os.IsNotExist(e) {
+		return c, nil
+	}
+
+	r, e := os.Open(path)
+	if e != nil {
+		return c, e
+	}
+	defer r.Close()
+	_, e = toml.DecodeReader(r, &c)
+	return c, e
+}
+
 func main() {
 	domains, e := getDomains()
 	if e != nil {
@@ -72,6 +131,23 @@ func main() {
 
 	muxs := make(map[string]*http.ServeMux)
 	for _, domain := range domains {
+
+		overrides, e := getOverrides(fmt.Sprintf("/var/www/%s/override.toml", domain))
+		if e != nil {
+			panic(e)
+		}
+
+		if len(overrides.Proxy) > 0 {
+			fn, e := proxy.Proxy(overrides.Proxy)
+			if e != nil {
+				panic(e)
+			}
+			mux := &http.ServeMux{}
+			mux.Handle("/", fn)
+			muxs[domain] = mux
+			continue
+		}
+
 		fs := gziphandler.GzipHandler(push(http.FileServer(http.Dir(fmt.Sprintf("/var/www/%s/pub", domain)))))
 		limit := ratelimit.Request(ratelimit.IP).Rate(30, time.Minute).LimitBy(memory.New()) // 30req/min
 		action := gziphandler.GzipHandler(limit(NewHandler(fmt.Sprintf("/var/www/%s/action/index.php", domain), "tcp", "127.0.0.1:8000")))
@@ -80,6 +156,12 @@ func main() {
 		mux.Handle("/action/", action)
 		mux.Handle("/", fs)
 		muxs[domain] = mux
+
+		a, e := getPush(fmt.Sprintf("/var/www/%s/pub/push", domain))
+		if e != nil {
+			panic(e)
+		}
+		pushAssets[domain] = a
 	}
 
 	m := &autocert.Manager{
