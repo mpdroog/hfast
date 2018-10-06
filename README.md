@@ -1,16 +1,21 @@
 HFast
 -------------
-HTTP-Server with convention over config.
+HTTPS-Server with convention over config, favoring security over convenience.
 
-Why not NGINx?
-- No config, shaving off a lot of time
- configuring domains
-- Wanted simple out of the box HTTPS/Ratelimit
-- Easy experimentation as all is modifyable
+Why?
+- Few to no configuration
+ So bye bye to those hours wasting on setting
+ up PHP-FCGI, ratelimiting etc...
+- HTTP/2 by default with HTTP/2 Push
+- TLS by default, no config! (LetsEncrypt)
+- Ratelimit by default on PHP
+- Proper caching/security headers everywhere
 
-So what the server offers:
-- Built-in ratelimit of 30req/min from a specific IP
-- FasctCGI to PHP
+How?
+- You need to place files in the pre-defined project structure
+- Think about URL-versioning CSS/img/JS-files if you want to replace them
+- Content Security Policy (CSP) by default, no CSS/JS in the body of HTML
+- Proper deadlines, so 5sec to finish a script, if your script it slower fix it!
 
 Future plan(s)
 - Write small co-worker to offer distributed (DNS)
