@@ -168,13 +168,6 @@ func main() {
 		Prompt:     autocert.AcceptTOS,
 		HostPolicy: autocert.HostWhitelist(domains...),
 	}
-	s := &http.Server{
-		Addr:         ":443",
-		TLSConfig:    &tls.Config{GetCertificate: m.GetCertificate},
-		Handler:      vhost(muxs),
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 10 * time.Second,
-	}
 
 	secureMiddleware := secure.New(secure.Options{
 		AllowedHosts:          domains,
@@ -190,9 +183,16 @@ func main() {
 		BrowserXssFilter:      true,
 		ContentSecurityPolicy: "script-src $NONCE",
 	})
+	app := secureMiddleware.Handler(vhost(muxs))
+	s := &http.Server{
+		Addr:         ":443",
+		TLSConfig:    &tls.Config{GetCertificate: m.GetCertificate},
+		Handler:      app,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+	}
 
-	app := secureMiddleware.Handler(m.HTTPHandler(nil))
-	go http.ListenAndServe("", app)
+	go http.ListenAndServe("", m.HTTPHandler(nil))
 
 	sent, e := daemon.SdNotify(false, "READY=1")
 	if e != nil {
