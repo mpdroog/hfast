@@ -185,7 +185,7 @@ func main() {
 		FrameDeny:             true,
 		ContentTypeNosniff:    true,
 		BrowserXssFilter:      true,
-		ContentSecurityPolicy: "script-src $NONCE",
+		ContentSecurityPolicy: "default-src 'self'",
 	})
 	app := secureMiddleware.Handler(vhost(muxs))
 	s := &http.Server{
