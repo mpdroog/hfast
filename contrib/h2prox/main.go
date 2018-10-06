@@ -3,11 +3,13 @@
 package main
 
 import (
-        "github.com/mpdroog/hfast/proxy"
-	"github.com/BurntSushi/toml"
 	"flag"
-	"os"
+	"fmt"
+	"github.com/BurntSushi/toml"
+	"github.com/coreos/go-systemd/daemon"
+	"github.com/mpdroog/hfast/proxy"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -20,19 +22,19 @@ type Config struct {
 }
 
 func vhost(muxs map[string]*http.ServeMux) http.HandlerFunc {
-        return func(w http.ResponseWriter, r *http.Request) {
-                m, ok := muxs[r.Host]
-                if !ok {
+	return func(w http.ResponseWriter, r *http.Request) {
+		m, ok := muxs[r.Host]
+		if !ok {
 			m, ok = muxs["*"]
 			if !ok {
 				panic("ConfigErr. No default host with * in config.")
 			}
-                }
-                m.ServeHTTP(w, r)
-                // Strip off sensitive info
-                w.Header().Del("X-Powered-By")
-                w.Header().Set("Server", "HFast")
-        }
+		}
+		m.ServeHTTP(w, r)
+		// Strip off sensitive info
+		w.Header().Del("X-Powered-By")
+		w.Header().Set("Server", "HFast")
+	}
 }
 
 func main() {
@@ -54,23 +56,32 @@ func main() {
 
 	muxs := make(map[string]*http.ServeMux)
 	for _, cfg := range C.Proxy {
-                        fn, e := proxy.Proxy(cfg.Dest)
-                        if e != nil {
-                                panic(e)
-                        }
+		fn, e := proxy.Proxy(cfg.Dest)
+		if e != nil {
+			panic(e)
+		}
 
-			mux := &http.ServeMux{}
-                        mux.Handle("/", fn)
-                        muxs[cfg.Host] = mux
+		mux := &http.ServeMux{}
+		mux.Handle("/", fn)
+		muxs[cfg.Host] = mux
 	}
 
 	vm := &http.ServeMux{}
-        vm.Handle("/", vhost(muxs))
-        s := &http.Server{
-                Addr:         ":80",
-                Handler:      vm,
-                ReadTimeout:  5 * time.Second,
-                WriteTimeout: 10 * time.Second,
-        }
+	vm.Handle("/", vhost(muxs))
+	s := &http.Server{
+		Addr:         ":80",
+		Handler:      vm,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+	}
+
+	sent, e := daemon.SdNotify(false, "READY=1")
+	if e != nil {
+		panic(e)
+	}
+	if !sent {
+		fmt.Printf("SystemD notify NOT sent\n")
+	}
+
 	panic(s.ListenAndServe())
 }
