@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/tls"
+	"flag"
 	"fmt"
 	"github.com/BurntSushi/toml"
 	"github.com/NYTimes/gziphandler"
@@ -123,6 +124,9 @@ func getOverrides(path string) (Overrides, error) {
 }
 
 func main() {
+	httpListen := ""
+	flag.StringVar(&httpListen, "l", "", "HTTP iface:port (to override port 80 binding)")
+	flag.Parse()
 	domains, e := getDomains()
 	if e != nil {
 		panic(e)
@@ -192,7 +196,7 @@ func main() {
 		WriteTimeout: 10 * time.Second,
 	}
 
-	go http.ListenAndServe("", m.HTTPHandler(nil))
+	go http.ListenAndServe(httpListen, m.HTTPHandler(nil))
 
 	sent, e := daemon.SdNotify(false, "READY=1")
 	if e != nil {
