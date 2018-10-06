@@ -9,6 +9,7 @@ import (
 	"github.com/VojtechVitek/ratelimit/memory"
 	"github.com/coreos/go-systemd/daemon"
 	"github.com/mpdroog/hfast/proxy"
+	"github.com/unrolled/secure"
 	"golang.org/x/crypto/acme/autocert"
 	"io/ioutil"
 	"log"
@@ -30,8 +31,6 @@ func init() {
 func push(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Vary", "Accept-Encoding")
-		w.Header().Set("x-frame-options", "SAMEORIGIN")
-		w.Header().Set("x-xss-protection", "1; mode=block")
 		if assets, ok := pushAssets[r.Host]; r.URL.Path == "/" && ok {
 			if pusher, ok := w.(http.Pusher); ok {
 				for _, asset := range assets {
@@ -177,7 +176,23 @@ func main() {
 		WriteTimeout: 10 * time.Second,
 	}
 
-	go http.ListenAndServe("", m.HTTPHandler(nil))
+	secureMiddleware := secure.New(secure.Options{
+		AllowedHosts:          domains,
+		HostsProxyHeaders:     []string{"X-Forwarded-Host"},
+		SSLRedirect:           false, // autocert takes care of this
+		SSLHost:               "",
+		SSLProxyHeaders:       map[string]string{"X-Forwarded-Proto": "https"},
+		STSSeconds:            315360000,
+		STSIncludeSubdomains:  false,
+		STSPreload:            true,
+		FrameDeny:             true,
+		ContentTypeNosniff:    true,
+		BrowserXssFilter:      true,
+		ContentSecurityPolicy: "script-src $NONCE",
+	})
+
+	app := secureMiddleware.Handler(m.HTTPHandler(nil))
+	go http.ListenAndServe("", app)
 
 	sent, e := daemon.SdNotify(false, "READY=1")
 	if e != nil {
