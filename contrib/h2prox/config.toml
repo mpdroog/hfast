@@ -1,0 +1,7 @@
+[[proxy]]
+Host = "*"
+Dest = "http://127.0.0.1:8080"
+
+[[proxy]]
+Host = "search.rootdev.nl"
+Dest = "http://www.google.nl"
