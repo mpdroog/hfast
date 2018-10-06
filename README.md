@@ -17,6 +17,16 @@ How?
 - Content Security Policy (CSP) by default, no CSS/JS in the body of HTML
 - Proper deadlines, so 5sec to finish a script, if your script it slower fix it!
 
+Systemd?
+Supported, see contrib dir for an example config to use.
+```
+vi /etc/systemd/system/hfast.service
+chmod 644 /etc/systemd/system/hfast.service
+systemctl daemon-reload
+systemctl enable hfast
+systemctl start hfast
+```
+
 Future plan(s)
 - Write small co-worker to offer distributed (DNS)
  hosting where the site is kept online when nodes fall off.
