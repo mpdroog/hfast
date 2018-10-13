@@ -1,0 +1,20 @@
+[Unit]
+Description=DeltaJournal
+After=network.target
+Requires=network.target
+
+[Service]
+Type=notify
+
+Restart=always
+RestartSec=30
+TimeoutStartSec=0
+
+WorkingDirectory=/home/dj
+ExecStart=/home/dj/deltajournal -c=/home/dj/deltajournal/config.toml
+User=dj
+Group=systemd-journal
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

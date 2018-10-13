@@ -1,0 +1,11 @@
+Ticker = "5m"
+
+[Email]
+Host = "smtp.mailgun.org"
+Port = 587
+User = ""
+Pass = ""
+Display = "Robot"
+From = ""
+To = ["you@yourcompany.com"]
+Subject = "Journald diff"
