@@ -17,10 +17,14 @@ type Email struct {
 	To      []string
 	Subject string
 }
+type ServiceFilter struct {
+	Severity int
+}
 type Config struct {
-	Email Email
-	Ticker string
-	TickerD time.Duration
+	Email    Email
+	Services map[string]ServiceFilter
+	Ticker   string
+	TickerD  time.Duration
 }
 
 var (

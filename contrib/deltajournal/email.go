@@ -1,11 +1,11 @@
 package main
 
 import (
+	"deltajournal/config"
 	"fmt"
 	"gopkg.in/gomail.v1"
 	"math/rand"
 	"time"
-	"deltajournal/config"
 )
 
 var (

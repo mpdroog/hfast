@@ -11,7 +11,7 @@ RestartSec=30
 TimeoutStartSec=0
 
 WorkingDirectory=/home/dj
-ExecStart=/home/dj/deltajournal -c=/home/dj/deltajournal/config.toml
+ExecStart=/home/dj/deltajournal -c=/home/dj/config.toml
 User=dj
 Group=systemd-journal
 NoNewPrivileges=true

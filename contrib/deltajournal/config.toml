@@ -9,3 +9,6 @@ Display = "Robot"
 From = ""
 To = ["you@yourcompany.com"]
 Subject = "Journald diff"
+
+[Services.hfast]
+severity = 7

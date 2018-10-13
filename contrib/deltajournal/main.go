@@ -1,16 +1,18 @@
 package main
 
 import (
+	"deltajournal/config"
 	"flag"
 	"fmt"
 	"github.com/coreos/go-systemd/daemon"
 	"github.com/coreos/go-systemd/sdjournal"
-	"deltajournal/config"
 	"io/ioutil"
 	"os"
-	"time"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
+	"time"
 )
 
 var (
@@ -24,10 +26,10 @@ var (
 
 func stop() bool {
 	select {
-		case _ = <-sigOS:
-			return true
-		default:
-			return false
+	case _ = <-sigOS:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -89,7 +91,8 @@ func main() {
 	// -------------------
 	// Strict-mode from here
 	// -------------------
-	run: for {
+run:
+	for {
 		txt := ""
 
 		// Keep reading till end of log
@@ -103,7 +106,7 @@ func main() {
 			}
 			r, e := j.Next()
 			if e != nil {
-				fmt.Printf("WARN: Journal.Next e=%s\n" + e.Error())
+				fmt.Printf("WARN: Journal.Next e=%s\n", e.Error())
 				break
 			}
 			if r == 0 {
@@ -115,15 +118,32 @@ func main() {
 
 			d, e := j.GetEntry()
 			if e != nil {
-				fmt.Printf("WARN: Journal.GetEntry e=%s\n" + e.Error())
+				fmt.Printf("WARN: Journal.GetEntry e=%s\n", e.Error())
 				break
 			}
-			if d.Fields["PRIORITY"] == "6" || d.Fields["PRIORITY"] == "7" {
+			severity := 5
+
+			unit := d.Fields["_SYSTEMD_UNIT"]
+			if len(unit) > 0 {
+				// Strip off .service
+				unit = unit[0:strings.Index(unit, ".")]
+			}
+
+			if override, ok := config.C.Services[unit]; ok {
+				severity = override.Severity
+			}
+
+			prio, e := strconv.Atoi(d.Fields["PRIORITY"])
+			if e != nil {
+				fmt.Printf("WARN: strconv.Atoi(%s) e=%s\n", d.Fields["PRIORITY"], e.Error())
+			}
+
+			if prio > severity {
 				if verbose {
-					fmt.Printf("IGNORE [%s!%s] %s\n", d.Fields["_SYSTEMD_UNIT"], d.Fields["PRIORITY"], d.Fields["MESSAGE"])
+					fmt.Printf("IGNORE [%s!%d>%d] %s\n", unit, prio, severity, d.Fields["MESSAGE"])
 				}
 				continue
-                        }
+			}
 			lastCursor = d.Cursor
 			// https://www.freedesktop.org/software/systemd/man/systemd.journal-fields.html
 			txt += fmt.Sprintf("[%s!%s] %s\n", d.Fields["_SYSTEMD_UNIT"], d.Fields["PRIORITY"], d.Fields["MESSAGE"])
