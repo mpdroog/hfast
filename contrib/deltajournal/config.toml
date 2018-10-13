@@ -10,5 +10,6 @@ From = ""
 To = ["you@yourcompany.com"]
 Subject = "Journald diff"
 
+https://en.wikipedia.org/wiki/Syslog#Severity_level
 [Services.hfast]
 severity = 7
