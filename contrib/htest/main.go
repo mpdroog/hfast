@@ -36,7 +36,7 @@ func main() {
 	}
 
 		mux := &http.ServeMux{}
-		mux.Handle("/action/", NewHandler(dir + "/action/index.php", "tcp", "127.0.0.1:8000"))
+		mux.Handle("/action/", NewHandler(dir + "/action/index.php", "tcp", "127.0.0.1:9000"))
 		mux.HandleFunc("/", fs)
 
 	s := &http.Server{
@@ -50,6 +50,8 @@ func main() {
 	signal.Notify(sigOS, os.Interrupt)
 	signal.Notify(sigOS, syscall.SIGTERM)
 
-	go s.ListenAndServe()
+	go func() {
+            panic(s.ListenAndServe())
+        }()
 	<-sigOS
 }
