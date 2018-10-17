@@ -17,10 +17,12 @@ import (
 	"net/http"
 	"os"
 	"time"
+	"strings"
 )
 
 type Overrides struct {
 	Proxy string // Just forward to given addr
+	ExcludedDomains []string
 }
 
 var pushAssets map[string][]string
@@ -132,12 +134,18 @@ func main() {
 		panic(e)
 	}
 
+	// HACK
+	csp := []string{}
+
 	muxs := make(map[string]*http.ServeMux)
 	for _, domain := range domains {
 
 		overrides, e := getOverrides(fmt.Sprintf("/var/www/%s/override.toml", domain))
 		if e != nil {
 			panic(e)
+		}
+		if len(overrides.ExcludedDomains) > 0 {
+			csp = append(csp, overrides.ExcludedDomains...)
 		}
 
 		if len(overrides.Proxy) > 0 {
@@ -185,7 +193,7 @@ func main() {
 		FrameDeny:             true,
 		ContentTypeNosniff:    true,
 		BrowserXssFilter:      true,
-		ContentSecurityPolicy: "default-src 'self'",
+		ContentSecurityPolicy: fmt.Sprintf("default-src 'self' %s", strings.Join(csp, " ")),
 	})
 	app := secureMiddleware.Handler(vhost(muxs))
 	s := &http.Server{
