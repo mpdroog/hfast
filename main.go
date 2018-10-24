@@ -92,7 +92,9 @@ func (rh *redirectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func vhost() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if (strings.HasPrefix(r.Host, "www.")) {
-			http.Redirect(w, r, r.Host[:len("www.")], http.StatusMovedPermanently)
+			host := r.Host[len("www."):]
+			target := "https://" + stripPort(host) + r.URL.RequestURI()
+			http.Redirect(w, r, target, http.StatusMovedPermanently)
 			return
 		}
 		m, ok := muxs[r.Host]
@@ -181,6 +183,7 @@ func main() {
 
 	// HACK
 	csp := []string{}
+	wwwDomains := []string{}
 
 	for _, domain := range domains {
 		overrides, e := getOverrides(fmt.Sprintf("/var/www/%s/override.toml", domain))
@@ -189,6 +192,9 @@ func main() {
 		}
 		if len(overrides.ExcludedDomains) > 0 {
 			csp = append(csp, overrides.ExcludedDomains...)
+		}
+		if (! strings.HasPrefix(domain, "www.")) {
+			wwwDomains = append(wwwDomains, "www."+domain)
 		}
 
 		if len(overrides.Proxy) > 0 {
@@ -217,6 +223,7 @@ func main() {
 		}
 		pushAssets[domain] = a
 	}
+	domains = append(domains, wwwDomains...)
 
 	// Add www-prefix
 	m := &autocert.Manager{
