@@ -18,6 +18,7 @@ import (
 	"os"
 	"time"
 	"strings"
+	"net"
 )
 
 type Overrides struct {
@@ -25,10 +26,14 @@ type Overrides struct {
 	ExcludedDomains []string
 }
 
-var pushAssets map[string][]string
+var (
+	pushAssets map[string][]string
+	muxs map[string]*http.ServeMux
+)
 
 func init() {
 	pushAssets = make(map[string][]string)
+	muxs = make(map[string]*http.ServeMux)
 }
 
 func push(h http.Handler) http.Handler {
@@ -48,8 +53,48 @@ func push(h http.Handler) http.Handler {
 	})
 }
 
-func vhost(muxs map[string]*http.ServeMux) http.HandlerFunc {
+func stripPort(hostport string) string {
+	host, _, err := net.SplitHostPort(hostport)
+	if err != nil {
+		return hostport
+	}
+	return net.JoinHostPort(host, "443")
+}
+
+type redirectHandler struct {
+}
+func (rh *redirectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" && r.Method != "HEAD" {
+		http.Error(w, "Use HTTPS", http.StatusBadRequest)
+		return
+	}
+
+	host := r.Host
+	iswww := strings.HasPrefix(r.Host, "www.")
+	if (iswww) {
+		host = r.Host[len("www."):]
+	}
+
+	if _, ok := muxs[host]; !ok {
+		log.Printf("Unmatched host: %s", host)
+		http.Error(w, "ERR: No such site.", http.StatusBadRequest)
+		return
+	}
+
+	target := "https://" + stripPort(host) + r.URL.RequestURI()
+	status := http.StatusFound
+	if (iswww) {
+		status = http.StatusMovedPermanently
+	}
+	http.Redirect(w, r, target, status)
+}
+
+func vhost() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if (strings.HasPrefix(r.Host, "www.")) {
+			http.Redirect(w, r, r.Host[:len("www.")], http.StatusMovedPermanently)
+			return
+		}
 		m, ok := muxs[r.Host]
 		if !ok {
 			log.Printf("Unmatched host: %s", r.Host)
@@ -137,9 +182,7 @@ func main() {
 	// HACK
 	csp := []string{}
 
-	muxs := make(map[string]*http.ServeMux)
 	for _, domain := range domains {
-
 		overrides, e := getOverrides(fmt.Sprintf("/var/www/%s/override.toml", domain))
 		if e != nil {
 			panic(e)
@@ -175,6 +218,7 @@ func main() {
 		pushAssets[domain] = a
 	}
 
+	// Add www-prefix
 	m := &autocert.Manager{
 		Cache:      autocert.DirCache("/tmp/certs"),
 		Prompt:     autocert.AcceptTOS,
@@ -195,7 +239,7 @@ func main() {
 		BrowserXssFilter:      true,
 		ContentSecurityPolicy: fmt.Sprintf("default-src 'self' %s", strings.Join(csp, " ")),
 	})
-	app := secureMiddleware.Handler(vhost(muxs))
+	app := secureMiddleware.Handler(vhost())
 	s := &http.Server{
 		Addr:         ":443",
 		TLSConfig:    &tls.Config{GetCertificate: m.GetCertificate},
@@ -204,7 +248,7 @@ func main() {
 		WriteTimeout: 10 * time.Second,
 	}
 
-	go http.ListenAndServe(httpListen, m.HTTPHandler(nil))
+	go http.ListenAndServe(httpListen, m.HTTPHandler(&redirectHandler{}))
 
 	sent, e := daemon.SdNotify(false, "READY=1")
 	if e != nil {
