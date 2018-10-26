@@ -19,21 +19,25 @@ import (
 	"time"
 	"strings"
 	"net"
+	"golang.org/x/text/language"
 )
 
 type Overrides struct {
 	Proxy string // Just forward to given addr
 	ExcludedDomains []string
+	Lang []string
 }
 
 var (
 	pushAssets map[string][]string
 	muxs map[string]*http.ServeMux
+	langs map[string]language.Matcher
 )
 
 func init() {
 	pushAssets = make(map[string][]string)
 	muxs = make(map[string]*http.ServeMux)
+	langs = make(map[string]language.Matcher)
 }
 
 func push(h http.Handler) http.Handler {
@@ -48,6 +52,23 @@ func push(h http.Handler) http.Handler {
 					}
 				}
 			}
+		}
+
+		match, ok := langs[r.Host]
+		if r.URL.Path == "/" && ok {
+			// Multi-lang
+			// TODO: err handle?
+			t, _, _ := language.ParseAcceptLanguage(r.Header.Get("Accept-Language"))
+
+			tag, _, _ := match.Match(t...)
+			lang := tag.String()
+			if (strings.Contains(lang, "-")) {
+				lang = lang[0:strings.Index(lang, "-")]
+			}
+
+			target := "https://" + r.Host + "/" + lang + "/"
+			http.Redirect(w, r, target, http.StatusFound)
+			return
 		}
 		h.ServeHTTP(w, r)
 	})
@@ -196,6 +217,11 @@ func main() {
 		if (! strings.HasPrefix(domain, "www.")) {
 			wwwDomains = append(wwwDomains, "www."+domain)
 		}
+		var tags []language.Tag
+		for _, lang := range overrides.Lang {
+			tags = append(tags, language.MustParse(lang))
+		}
+		langs[domain] = language.NewMatcher(tags)
 
 		if len(overrides.Proxy) > 0 {
 			fn, e := proxy.Proxy(overrides.Proxy)
