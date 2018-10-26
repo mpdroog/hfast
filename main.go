@@ -208,7 +208,7 @@ func main() {
 			continue
 		}
 
-		fs := gziphandler.GzipHandler(push(http.FileServer(http.Dir(fmt.Sprintf("/var/www/%s/pub", domain)))))
+		fs := gziphandler.GzipHandler(push(FileServer(Dir(fmt.Sprintf("/var/www/%s/pub", domain)))))
 		limit := ratelimit.Request(ratelimit.IP).Rate(30, time.Minute).LimitBy(memory.New()) // 30req/min
 		action := gziphandler.GzipHandler(limit(NewHandler(fmt.Sprintf("/var/www/%s/action/index.php", domain), "tcp", "127.0.0.1:8000")))
 
