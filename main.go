@@ -42,6 +42,7 @@ func init() {
 
 func push(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Host = strings.ToLower(r.Host)
 		w.Header().Set("Vary", "Accept-Encoding")
 		if assets, ok := pushAssets[r.Host]; r.URL.Path == "/" && ok {
 			if pusher, ok := w.(http.Pusher); ok {
@@ -90,10 +91,10 @@ func (rh *redirectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	host := r.Host
-	iswww := strings.HasPrefix(r.Host, "www.")
+	host := strings.ToLower(r.Host)
+	iswww := strings.HasPrefix(host, "www.")
 	if (iswww) {
-		host = r.Host[len("www."):]
+		host = host[len("www."):]
 	}
 
 	if _, ok := muxs[host]; !ok {
@@ -112,6 +113,7 @@ func (rh *redirectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func vhost() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		r.Host = strings.ToLower(r.Host)
 		if (strings.HasPrefix(r.Host, "www.")) {
 			host := r.Host[len("www."):]
 			target := "https://" + stripPort(host) + r.URL.RequestURI()
@@ -140,6 +142,9 @@ func getDomains() ([]string, error) {
 	out := []string{}
 	for _, file := range fileInfo {
 		if file.IsDir() {
+			if strings.ToLower(file.Name()) != file.Name() {
+				return nil, fmt.Errorf("/var/www/" + file.Name() + " not lowercase!")
+			}
 			out = append(out, file.Name())
 		}
 	}
