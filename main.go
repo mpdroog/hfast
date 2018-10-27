@@ -12,26 +12,26 @@ import (
 	"github.com/mpdroog/hfast/proxy"
 	"github.com/unrolled/secure"
 	"golang.org/x/crypto/acme/autocert"
+	"golang.org/x/text/language"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"os"
-	"time"
 	"strings"
-	"net"
-	"golang.org/x/text/language"
+	"time"
 )
 
 type Overrides struct {
-	Proxy string // Just forward to given addr
+	Proxy           string // Just forward to given addr
 	ExcludedDomains []string
-	Lang []string
+	Lang            []string
 }
 
 var (
 	pushAssets map[string][]string
-	muxs map[string]*http.ServeMux
-	langs map[string]language.Matcher
+	muxs       map[string]*http.ServeMux
+	langs      map[string]language.Matcher
 )
 
 func init() {
@@ -63,7 +63,7 @@ func push(h http.Handler) http.Handler {
 
 			tag, _, _ := match.Match(t...)
 			lang := tag.String()
-			if (strings.Contains(lang, "-")) {
+			if strings.Contains(lang, "-") {
 				lang = lang[0:strings.Index(lang, "-")]
 			}
 
@@ -85,6 +85,7 @@ func stripPort(hostport string) string {
 
 type redirectHandler struct {
 }
+
 func (rh *redirectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" && r.Method != "HEAD" {
 		http.Error(w, "Use HTTPS", http.StatusBadRequest)
@@ -93,7 +94,7 @@ func (rh *redirectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	host := strings.ToLower(r.Host)
 	iswww := strings.HasPrefix(host, "www.")
-	if (iswww) {
+	if iswww {
 		host = host[len("www."):]
 	}
 
@@ -105,7 +106,7 @@ func (rh *redirectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	target := "https://" + stripPort(host) + r.URL.RequestURI()
 	status := http.StatusFound
-	if (iswww) {
+	if iswww {
 		status = http.StatusMovedPermanently
 	}
 	http.Redirect(w, r, target, status)
@@ -114,7 +115,7 @@ func (rh *redirectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func vhost() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		r.Host = strings.ToLower(r.Host)
-		if (strings.HasPrefix(r.Host, "www.")) {
+		if strings.HasPrefix(r.Host, "www.") {
 			host := r.Host[len("www."):]
 			target := "https://" + stripPort(host) + r.URL.RequestURI()
 			http.Redirect(w, r, target, http.StatusMovedPermanently)
@@ -219,7 +220,7 @@ func main() {
 		if len(overrides.ExcludedDomains) > 0 {
 			csp = append(csp, overrides.ExcludedDomains...)
 		}
-		if (! strings.HasPrefix(domain, "www.")) {
+		if !strings.HasPrefix(domain, "www.") {
 			wwwDomains = append(wwwDomains, "www."+domain)
 		}
 
