@@ -222,11 +222,6 @@ func main() {
 		if (! strings.HasPrefix(domain, "www.")) {
 			wwwDomains = append(wwwDomains, "www."+domain)
 		}
-		var tags []language.Tag
-		for _, lang := range overrides.Lang {
-			tags = append(tags, language.MustParse(lang))
-		}
-		langs[domain] = language.NewMatcher(tags)
 
 		if len(overrides.Proxy) > 0 {
 			fn, e := proxy.Proxy(overrides.Proxy)
@@ -237,6 +232,14 @@ func main() {
 			mux.Handle("/", fn)
 			muxs[domain] = mux
 			continue
+		}
+
+		if len(overrides.Lang) > 0 {
+			var tags []language.Tag
+			for _, lang := range overrides.Lang {
+				tags = append(tags, language.MustParse(lang))
+			}
+			langs[domain] = language.NewMatcher(tags)
 		}
 
 		fs := gziphandler.GzipHandler(push(FileServer(Dir(fmt.Sprintf("/var/www/%s/pub", domain)))))
