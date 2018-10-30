@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>UploadMe</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <link href="/fa/css/font-awesome.min.css" rel="stylesheet">
+<link href="/bootstrap.min.css" rel="stylesheet">
+<style>
+body {
+	color: #333;
+}
+.red {
+	color: red;
+}
+.green {
+	color: green;
+}
+#drop_zone {
+	background-color: #fafafa;
+    border: 2px dashed gray;
+    -moz-border-radius: 5px;
+    -webkit-border-radius: 5px;
+    border-radius: 5px;
+    padding: 25px;
+    text-align: center;
+    font: 20pt bold 'Vollkorn';
+}
+#files {
+	display: none;
+}
+#list {
+	margin-top: 10px;
+}
+#list ul {
+	list-style-type: none;
+}
+
+/* progress */
+#progress_bar {
+margin: 10px 0;
+padding: 3px;
+border: 1px solid #000;
+font-size: 14px;
+clear: both;
+opacity: 0;
+-moz-transition: opacity 1s linear;
+-o-transition: opacity 1s linear;
+-webkit-transition: opacity 1s linear;
+}
+#progress_bar.loading {
+opacity: 1.0;
+}
+#progress_bar .percent {
+background-color: #99ccff;
+height: auto;
+width: 0;
+}
+</style>
+ </head>
+ <body>
+ <div class="container">
+ 	<h1>Uploadme</h1>
+ 	<input type="file" id="files" multiple />
+	<div id="drop_zone">
+		<p><i class="fa-5x fa fa-cloud-upload"></i></p>
+		Drop files here (or click to select)
+	</div>
+	<output id="list"></output>
+</div>
+
+<script>
+	"use strict";
+  var queue = []; 
+  var output = "";
+  var whitelist = ['audio/wav'];
+
+  function esc(f) {
+  	return escape(f).replace(/%20/g, " ");
+  }
+
+  function prep(files) {
+    for (var i = 0, f; f = files[i]; i++) {
+      console.log(f);
+      if (whitelist.indexOf(f.type) === -1) {
+      	output += '<li class="red"><strong><i class="fa fa-exclamation-triangle" aria-hidden="true"></i> Ignored: ' + esc(f.name) + '</strong>';
+      	document.getElementById('list').innerHTML = '<ul>' + output + '</ul>';
+      	return;
+      }
+
+      var id = 'result_' + output.length;
+      /*queue.push({
+      	id: 'result_' + output.length,
+      	f: f
+      });*/
+
+      	// TODO: Some queue?
+	  	chunkedRead(f, function(f, chunk, i, total) {
+	  		var xhr = new XMLHttpRequest();
+	      	xhr.open('POST', '/action/uploads/chunk?f='+ escape(f.name) + '&i=' + i + "&total=" + total, true);
+	      	xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+	      	xhr.onload = function(e) {
+	      		// TODO: Error handle?
+			    if (this.status == 200) {
+			      console.log("xhr", this.responseText);
+			      // TODO: Update UI?
+			    }
+			};
+	  		xhr.send(chunk);
+	  	}, function(f) {
+	  		document.getElementById(id).innerHTML = '<strong class="green"><i class="fa fa-check-circle" aria-hidden="true"></i> ' + esc(f.name) + '</strong>';
+	  	});
+
+      output +=
+      	//'<li id=' + id + '><strong><i class="fa fa-pause-circle" aria-hidden="true"></i> ' + esc(f.name) + '</strong></li>'
+      	'<li id=' + id + '><strong><i class="fa fa-circle-o-notch fa-spin fa-fw" aria-hidden="true"></i> ' + esc(f.name) + '</strong></li>'
+      ;
+    }
+    document.getElementById('list').innerHTML = '<ul>' + output + '</ul>';
+  }
+  // fsize=115356 
+  //chunk=1048576
+
+  // https://stackoverflow.com/questions/14438187/javascript-filereader-parsing-long-file-in-chunks#28318964
+  function chunkedRead(file, callback, cbDone) {
+    var chunkSize  = 1 * 1024*1024; // 1mb
+    var offset     = 0;
+    var chunkReaderBlock = null;
+    var i = 0;
+    console.log('chunkedRead.begin', file.name, 'chunks', file.size / chunkSize);
+
+    var readEventHandler = function(evt) {
+        if (evt.target.error == null) {
+        	console.log('chunkedRead.chunk', file.name, 'offset', offset, 'chunk', offset+evt.target.result.byteLength, 'total', file.size);
+            offset += evt.target.result.byteLength;
+            //offset += chunkSize;
+            callback(file, evt.target.result, i, Math.ceil(file.size / chunkSize));
+            i++;
+        } else {
+            console.log("Read error: " + evt.target.error);
+            return;
+        }
+        if (offset >= file.size) {
+            console.log("chunkedRead.done");
+            cbDone(file);
+            return;
+        }
+
+        // off to the next chunk
+        chunkReaderBlock(offset, chunkSize, file);
+    }
+
+    chunkReaderBlock = function(_offset, length, _file) {
+        var r = new FileReader();
+        var blob = _file.slice(_offset, length + _offset);
+        r.onloadend = readEventHandler;
+        //r.readAsBinaryString(blob);
+        r.readAsArrayBuffer(blob);
+    }
+
+    // now let's start the read with the first block
+    chunkReaderBlock(offset, chunkSize, file);
+  }
+
+  function errorHandler(evt) {
+    switch(evt.target.error.code) {
+      case evt.target.error.NOT_FOUND_ERR:
+        alert('File Not Found!');
+        break;
+      case evt.target.error.NOT_READABLE_ERR:
+        alert('File is not readable');
+        break;
+      case evt.target.error.ABORT_ERR:
+        break; // noop
+      default:
+        alert('An error occurred reading this file.');
+    };
+  }
+  function updateProgress(evt) {
+    // evt is an ProgressEvent.
+    if (evt.lengthComputable) {
+      var percentLoaded = Math.round((evt.loaded / evt.total) * 100);
+      // Increase the progress bar length.
+      if (percentLoaded < 100) {
+        progress.style.width = percentLoaded + '%';
+        progress.textContent = percentLoaded + '%';
+      }
+    }
+  }
+
+  function handleFileSelect(evt) {
+    evt.stopPropagation();
+    evt.preventDefault();
+
+    prep(evt.dataTransfer.files);
+  }
+  function handleFileChange(evt) {
+    prep(evt.target.files);
+  }
+
+  function handleFileClick(evt) {
+  	document.getElementById('files').click();
+  }
+
+  function handleDragOver(evt) {
+    evt.stopPropagation();
+    evt.preventDefault();
+    evt.dataTransfer.dropEffect = 'copy'; // Explicitly show this is a copy.
+  }
+
+  // Setup the dnd listeners.
+  var dropZone = document.getElementById('drop_zone');
+  dropZone.addEventListener('dragover', handleDragOver, false);
+  dropZone.addEventListener('drop', handleFileSelect, false);
+  dropZone.addEventListener('click', handleFileClick, false);
+
+  document.getElementById('files').addEventListener('change', handleFileChange, false);
+</script>
+
+ </body>
+</html>
