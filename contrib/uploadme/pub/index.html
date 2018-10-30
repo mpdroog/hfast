@@ -75,6 +75,23 @@ width: 0;
   var output = "";
   var whitelist = ['audio/wav'];
 
+var xhr = new XMLHttpRequest();
+xhr.open('GET', '/action/uploads', true);
+xhr.onload = function(e) {
+	// TODO: Error handle?
+if (this.status == 200) {
+  console.log("xhr", this.responseText);
+  var obj = JSON.parse(this.responseText);
+  console.log(obj);
+  for (var i = 0; i < obj.length; i++) {
+  	var name = obj[i];
+  	output += '<li><strong class="green"><i class="fa fa-check-circle" aria-hidden="true"></i> ' + esc(name) + '</strong></li>';
+  }
+  document.getElementById('list').innerHTML = '<ul>' + output + '</ul>';
+}
+};
+xhr.send();
+
   function esc(f) {
   	return escape(f).replace(/%20/g, " ");
   }

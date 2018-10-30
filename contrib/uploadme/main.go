@@ -14,12 +14,53 @@ import (
 	"os"
 	"time"
 	"io"
+	"io/ioutil"
+	"encoding/json"
+	"strings"
 )
 
 const maxUploadSize = 1024*1024*1.5 // 1.5MB (500KB bigger than the browser)
 var Verbose bool
 
 func status(w http.ResponseWriter, r *http.Request) {
+	hash := fmt.Sprintf("%x", sha256.Sum256([]byte(stripPort(r.RemoteAddr))))
+	fdir := "./files/" + hash
+	exist, e := exists(fdir)
+	if e != nil {
+		log.Println("Failed stat: " + fdir)
+		http.Error(w, "Failed getting status", 500)
+		return
+	}
+	if !exist {
+		w.Write([]byte("[]"))
+		return
+	}
+
+	files, err := ioutil.ReadDir(fdir)
+    if err != nil {
+		log.Println("ioutil.ReadDir: " + err.Error())
+		http.Error(w, "Failed reading files", 500)
+		return
+    }
+
+    var fs []string
+    for _, file := range files {
+    	if (strings.ToUpper(file.Name()) == ".DS_STORE") {
+    		continue;
+    	}
+    	if (strings.HasSuffix(file.Name(), ".json")) {
+    		continue;
+    	}
+    	fs = append(fs, file.Name())
+    }
+
+    js, err := json.Marshal(fs)
+    if err != nil {
+		log.Println("json.Marshal: " + err.Error())
+		http.Error(w, "Failed encoding res", 500)
+		return
+    }
+    w.Write(js)
 }
 
 func chunk(w http.ResponseWriter, r *http.Request) {
@@ -34,11 +75,12 @@ func chunk(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	total := r.URL.Query().Get("total")
-	if len(part) == 0 {
+	if len(total) == 0 {
 		http.Error(w, "missing GET[total]", 400)
 		return
 	}
-	// TODO: save total somewhere for checksumming?
+	// TODO: Checksum received data?
+	// TODO: save total somewhere for checking all received?
 
 	// TODO: Something stronger?
 	hash := fmt.Sprintf("%x", sha256.Sum256([]byte(stripPort(r.RemoteAddr))))
@@ -57,7 +99,7 @@ func chunk(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	fname = fdir + "/" + fname // + "." + part
+	fname = fdir + "/" + fname + "." + part
 	exist, e = exists(fname)
 	if e != nil {
 		log.Println("Failed stat: " + fdir)
