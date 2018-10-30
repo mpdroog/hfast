@@ -115,7 +115,6 @@ func chunk(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// TODO: Checksum received data?
-	// TODO: save total somewhere for checking all received?
 
 	// TODO: Something stronger?
 	hash := fmt.Sprintf("%x", sha256.Sum256([]byte(stripPort(r.RemoteAddr))))

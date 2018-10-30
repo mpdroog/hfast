@@ -74,6 +74,7 @@ width: 0;
 	"use strict";
   var queue = []; 
   var output = "";
+  var uniq = 0;
   var whitelist = ['audio/wav', 'audio/mp3'];
 
 var xhr = new XMLHttpRequest();
@@ -86,36 +87,42 @@ xhr.onload = function(e) {
 	  console.log(obj);
 	  for (var i = 0; i < obj.length; i++) {
 	  	var name = obj[i];
-	  	output += '<li><strong class="green"><i class="fa fa-check-circle" aria-hidden="true"></i> ' + esc(name) + '</strong></li>';
+	  	output += '<li><strong class="green"><i class="fa fa-check-circle" aria-hidden="true"></i> ' + htmlEscape(name) + '</strong></li>';
 	  }
 	  document.getElementById('list').innerHTML = '<ul>' + output + '</ul>';
 	}
 };
 xhr.send();
 
-  function esc(f) {
-  	return escape(f).replace(/%20/g, " ");
-  }
+function htmlEscape(str) {
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
 
   function prep(files) {
     for (var i = 0, f; f = files[i]; i++) {
       console.log(f);
       if (whitelist.indexOf(f.type) === -1) {
-      	output += '<li class="red"><strong><i class="fa fa-exclamation-triangle" aria-hidden="true"></i> Ignored: ' + esc(f.name) + '</strong>';
+      	output += '<li class="red"><strong><i class="fa fa-exclamation-triangle" aria-hidden="true"></i> Ignored: ' + htmlEscape(f.name) + '</strong>';
       	document.getElementById('list').innerHTML = '<ul>' + output + '</ul>';
       	return;
       }
 
-      var id = 'result_' + output.length;
+      var id = 'result_' + uniq;
+      uniq++;
       /*queue.push({
       	id: 'result_' + output.length,
       	f: f
       });*/
 
       	// TODO: Some queue?
-	  	chunkedRead(f, function(f, chunk, i, total) {
+	  	var stop = chunkedRead(f, id, function(f, chunk, i, total, id) {
 	  		var xhr = new XMLHttpRequest();
-	      	xhr.open('POST', '/action/uploads/chunk?f='+ escape(f.name) + '&i=' + i + "&total=" + total, true);
+	      	xhr.open('POST', '/action/uploads/chunk?f='+ encodeURIComponent(f.name) + '&i=' + i + "&total=" + total, true);
 	      	xhr.setRequestHeader('Content-Type', 'application/octet-stream');
 	      	xhr.onload = function(e) {
 	      		// TODO: Error handle?
@@ -124,21 +131,22 @@ xhr.send();
 				      console.log("xhr", this.responseText);
 				      // TODO: Update UI?
 				    } else {
-				    	document.getElementById(id).innerHTML = '<strong class="red"><i class="fafa-exclamation" aria-hidden="true"></i> ' + esc(f.name) + '</strong>';
+				    	document.getElementById(id).innerHTML = '<strong class="red"><i class="fafa-exclamation" aria-hidden="true"></i> ' + htmlEscape(f.name) + '</strong>';
 				    }
 				}
 			};
 			xhr.onerror = function () {
-				document.getElementById(id).innerHTML = '<strong class="red"><i class="fa fa-exclamation" aria-hidden="true"></i> ' + esc(f.name) + '</strong>';
+				document.getElementById(id).innerHTML = '<strong class="red"><i class="fa fa-exclamation" aria-hidden="true"></i> ' + htmlEscape(f.name) + '</strong>';
+				stop();
 			};
 	  		xhr.send(chunk);
-	  	}, function(f) {
-	  		document.getElementById(id).innerHTML = '<strong class="green"><i class="fa fa-check-circle" aria-hidden="true"></i> ' + esc(f.name) + '</strong>';
+	  	}, function(f, id) {
+	  		document.getElementById(id).innerHTML = '<strong class="green"><i class="fa fa-check-circle" aria-hidden="true"></i> ' + htmlEscape(f.name) + '</strong>';
 	  	});
 
       output +=
-      	//'<li id=' + id + '><strong><i class="fa fa-pause-circle" aria-hidden="true"></i> ' + esc(f.name) + '</strong></li>'
-      	'<li id=' + id + '><strong><i class="fa fa-circle-o-notch fa-spin fa-fw" aria-hidden="true"></i> ' + esc(f.name) + '</strong></li>'
+      	//'<li id=' + id + '><strong><i class="fa fa-pause-circle" aria-hidden="true"></i> ' + htmlEscape(f.name) + '</strong></li>'
+      	'<li id=' + id + '><strong><i class="fa fa-circle-o-notch fa-spin fa-fw" aria-hidden="true"></i> ' + htmlEscape(f.name) + '</strong></li>'
       ;
     }
     document.getElementById('list').innerHTML = '<ul>' + output + '</ul>';
@@ -147,19 +155,20 @@ xhr.send();
   //chunk=1048576
 
   // https://stackoverflow.com/questions/14438187/javascript-filereader-parsing-long-file-in-chunks#28318964
-  function chunkedRead(file, callback, cbDone) {
+  function chunkedRead(file, id, callback, cbDone) {
     var chunkSize  = 1 * 1024*1024; // 1mb
     var offset     = 0;
     var chunkReaderBlock = null;
     var i = 0;
-    console.log('chunkedRead.begin', file.name, 'chunks', file.size / chunkSize);
+    var stop = false;
+    console.log('chunkedRead.begin', file.name, 'chunks', Math.ceil(file.size / chunkSize));
 
     var readEventHandler = function(evt) {
         if (evt.target.error == null) {
         	console.log('chunkedRead.chunk', file.name, 'offset', offset, 'chunk', offset+evt.target.result.byteLength, 'total', file.size);
             offset += evt.target.result.byteLength;
             //offset += chunkSize;
-            callback(file, evt.target.result, i, Math.ceil(file.size / chunkSize));
+            callback(file, evt.target.result, i, Math.ceil(file.size / chunkSize), id);
             i++;
         } else {
             console.log("Read error: " + evt.target.error);
@@ -167,7 +176,7 @@ xhr.send();
         }
         if (offset >= file.size) {
             console.log("chunkedRead.done");
-            cbDone(file);
+            cbDone(file, id);
             return;
         }
 
@@ -176,6 +185,10 @@ xhr.send();
     }
 
     chunkReaderBlock = function(_offset, length, _file) {
+    	if (stop) {
+    		console.log("Cancel");
+    		return;
+    	}
         var r = new FileReader();
         var blob = _file.slice(_offset, length + _offset);
         r.onloadend = readEventHandler;
@@ -185,6 +198,9 @@ xhr.send();
 
     // now let's start the read with the first block
     chunkReaderBlock(offset, chunkSize, file);
+    return function() {
+    	stop = true;
+    }
   }
 
   function errorHandler(evt) {
