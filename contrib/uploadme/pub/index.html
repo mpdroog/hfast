@@ -38,21 +38,21 @@ body {
 }
 
 /* progress */
-#progress_bar {
+.progress_bar {
+	display: inline-block;
+	    width: 200px;
 margin: 10px 0;
 padding: 3px;
 border: 1px solid #000;
 font-size: 14px;
-clear: both;
-opacity: 0;
 -moz-transition: opacity 1s linear;
 -o-transition: opacity 1s linear;
 -webkit-transition: opacity 1s linear;
 }
-#progress_bar.loading {
+.progress_bar.loading {
 opacity: 1.0;
 }
-#progress_bar .percent {
+.progress_bar .percent {
 background-color: #99ccff;
 height: auto;
 width: 0;
@@ -73,7 +73,6 @@ width: 0;
 <script>
 	"use strict";
   var queue = []; 
-  var output = "";
   var uniq = 0;
   var whitelist = ['audio/wav', 'audio/mp3'];
 
@@ -85,6 +84,7 @@ xhr.onload = function(e) {
 	  console.log("xhr", this.responseText);
 	  var obj = JSON.parse(this.responseText);
 	  console.log(obj);
+	  var output = '';
 	  for (var i = 0; i < obj.length; i++) {
 	  	var name = obj[i];
 	  	output += '<li><strong class="green"><i class="fa fa-check-circle" aria-hidden="true"></i> ' + htmlEscape(name) + '</strong></li>';
@@ -107,13 +107,14 @@ function htmlEscape(str) {
     for (var i = 0, f; f = files[i]; i++) {
       console.log(f);
       if (whitelist.indexOf(f.type) === -1) {
-      	output += '<li class="red"><strong><i class="fa fa-exclamation-triangle" aria-hidden="true"></i> Ignored: ' + htmlEscape(f.name) + '</strong>';
-      	document.getElementById('list').innerHTML = '<ul>' + output + '</ul>';
+      	output = '<li class="red"><strong><i class="fa fa-exclamation-triangle" aria-hidden="true"></i> Ignored: ' + htmlEscape(f.name) + '</strong>';
+      	document.getElementById('list').children[0].innerHTML += output;
       	return;
       }
 
       var id = 'result_' + uniq;
       uniq++;
+      console.log("Z", id);
       /*queue.push({
       	id: 'result_' + output.length,
       	f: f
@@ -126,12 +127,20 @@ function htmlEscape(str) {
 	      	xhr.setRequestHeader('Content-Type', 'application/octet-stream');
 	      	xhr.onload = function(e) {
 	      		// TODO: Error handle?
-	      		if ( xhr.readyState == 4 ) { 
+	      		if (xhr.readyState == 4) { 
 				    if (this.status == 200) {
 				      console.log("xhr", this.responseText);
+
+				      // (5/10)*100
+				      var percent = ((i+1) / total) * 100;
+				      document.getElementById(id + '_step').style.width = percent + '%';
+				      document.getElementById(id + '_step').innerHTML = percent + '%';
 				      // TODO: Update UI?
+				      if (percent == 100) {
+						document.getElementById(id).innerHTML = '<strong class="green"><i class="fa fa-check-circle" aria-hidden="true"></i> ' + htmlEscape(f.name) + '</strong>';
+				      }
 				    } else {
-				    	document.getElementById(id).innerHTML = '<strong class="red"><i class="fafa-exclamation" aria-hidden="true"></i> ' + htmlEscape(f.name) + '</strong>';
+				    	document.getElementById(id).innerHTML = '<strong class="red"><i class="fa fa-exclamation" aria-hidden="true"></i> ' + htmlEscape(f.name) + '</strong>';
 				    }
 				}
 			};
@@ -141,15 +150,14 @@ function htmlEscape(str) {
 			};
 	  		xhr.send(chunk);
 	  	}, function(f, id) {
-	  		document.getElementById(id).innerHTML = '<strong class="green"><i class="fa fa-check-circle" aria-hidden="true"></i> ' + htmlEscape(f.name) + '</strong>';
 	  	});
 
-      output +=
+      var output =
       	//'<li id=' + id + '><strong><i class="fa fa-pause-circle" aria-hidden="true"></i> ' + htmlEscape(f.name) + '</strong></li>'
-      	'<li id=' + id + '><strong><i class="fa fa-circle-o-notch fa-spin fa-fw" aria-hidden="true"></i> ' + htmlEscape(f.name) + '</strong></li>'
+      	'<li id=' + id + '><strong><i class="fa fa-circle-o-notch fa-spin fa-fw" aria-hidden="true"></i> ' + htmlEscape(f.name) + '</strong> <div class="progress_bar"><div id="' + id +'_step" class="percent">0%</div></div></li>'
       ;
+      document.getElementById('list').children[0].innerHTML += output;
     }
-    document.getElementById('list').innerHTML = '<ul>' + output + '</ul>';
   }
   // fsize=115356 
   //chunk=1048576
