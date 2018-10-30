@@ -17,10 +17,20 @@ import (
 	"io/ioutil"
 	"encoding/json"
 	"strings"
+	"strconv"
 )
 
 const maxUploadSize = 1024*1024*1.5 // 1.5MB (500KB bigger than the browser)
 var Verbose bool
+
+type MetaPart struct {
+	Size int64
+}
+type Meta struct {
+	Name string
+	PartCount int
+	Parts []MetaPart
+}
 
 func status(w http.ResponseWriter, r *http.Request) {
 	hash := fmt.Sprintf("%x", sha256.Sum256([]byte(stripPort(r.RemoteAddr))))
@@ -43,15 +53,34 @@ func status(w http.ResponseWriter, r *http.Request) {
 		return
     }
 
-    var fs []string
+    fs := make([]string, 0)
     for _, file := range files {
     	if (strings.ToUpper(file.Name()) == ".DS_STORE") {
     		continue;
     	}
-    	if (strings.HasSuffix(file.Name(), ".json")) {
+    	if (! strings.HasSuffix(file.Name(), ".json")) {
     		continue;
     	}
-    	fs = append(fs, file.Name())
+    	// TODO: Read file and check all parts there?
+
+    	// TODO: OOM...
+		r, e := os.Open(fdir + "/" + file.Name())
+			if e != nil {
+				log.Println("os.Open: " + e.Error())
+				http.Error(w, "Failed reading files", 500)
+				return
+			}
+		defer r.Close()
+
+		m := Meta{}
+    	if e := json.NewDecoder(r).Decode(&m); e != nil {
+    		log.Println("json.decode: " + e.Error())
+				http.Error(w, "Failed decoding files", 500)
+				return
+    	}
+    	if (len(m.Parts) == m.PartCount) {
+	    	fs = append(fs, file.Name()[0:strings.Index(file.Name(), ".json")])
+	    }
     }
 
     js, err := json.Marshal(fs)
@@ -79,6 +108,12 @@ func chunk(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing GET[total]", 400)
 		return
 	}
+	totalInt, err := strconv.Atoi(total)
+	if err != nil {
+		http.Error(w, "invalid GET[total]", 400)
+		return
+	}
+
 	// TODO: Checksum received data?
 	// TODO: save total somewhere for checking all received?
 
@@ -97,6 +132,25 @@ func chunk(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Failed creating dir", 500)
 			return
 		}
+	}
+
+	jname := fdir + "/" + fname + ".json"
+	m := Meta{Name: fname, PartCount: totalInt}
+	if (part != "0") {
+		//load
+		r, e := os.Open(jname)
+			if e != nil {
+				log.Println("os.Open: " + e.Error())
+				http.Error(w, "Failed reading files", 500)
+				return
+			}
+		defer r.Close()
+
+    	if e := json.NewDecoder(r).Decode(&m); e != nil {
+    		log.Println("json.decode: " + e.Error())
+				http.Error(w, "Failed decoding files", 500)
+				return
+    	}
 	}
 
 	fname = fdir + "/" + fname + "." + part
@@ -125,11 +179,25 @@ func chunk(w http.ResponseWriter, r *http.Request) {
    }
    defer f.Close()
    defer r.Body.Close()
-   if _, e := io.Copy(f, r.Body); e != nil {
+   n, e := io.Copy(f, r.Body)
+   if e != nil {
    				log.Println("io.Copy err: " + e.Error())
 			http.Error(w, "Failed writing chunk to fs", 500)
 			return
    }
+
+   m.Parts = append(m.Parts, MetaPart{Size:n})
+	j, e := json.Marshal(m)
+	if e != nil {
+		log.Println("Failed json.marshal: " + e.Error())
+		http.Error(w, "Failed encoding", 500)
+		return
+	}
+	if e := ioutil.WriteFile(jname, j, 0644); e != nil {
+		log.Println("Failed json.marshal: " + e.Error())
+		http.Error(w, "Failed saving meta", 500)
+	}
+			
 
    log.Println("Uploaded " + fname)
    w.Write([]byte("OK."))
