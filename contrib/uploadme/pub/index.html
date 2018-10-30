@@ -65,7 +65,7 @@ width: 0;
  	<input type="file" id="files" multiple />
 	<div id="drop_zone">
 		<p><i class="fa-5x fa fa-cloud-upload"></i></p>
-		Drop files here (or click to select)
+		Drop MP3/WAV here (or click to select)
 	</div>
 	<output id="list">Loading assets..</output>
 </div>
@@ -74,22 +74,22 @@ width: 0;
 	"use strict";
   var queue = []; 
   var output = "";
-  var whitelist = ['audio/wav'];
+  var whitelist = ['audio/wav', 'audio/mp3'];
 
 var xhr = new XMLHttpRequest();
 xhr.open('GET', '/action/uploads', true);
 xhr.onload = function(e) {
 	// TODO: Error handle?
-if (this.status == 200) {
-  console.log("xhr", this.responseText);
-  var obj = JSON.parse(this.responseText);
-  console.log(obj);
-  for (var i = 0; i < obj.length; i++) {
-  	var name = obj[i];
-  	output += '<li><strong class="green"><i class="fa fa-check-circle" aria-hidden="true"></i> ' + esc(name) + '</strong></li>';
-  }
-  document.getElementById('list').innerHTML = '<ul>' + output + '</ul>';
-}
+	if (this.status == 200) {
+	  console.log("xhr", this.responseText);
+	  var obj = JSON.parse(this.responseText);
+	  console.log(obj);
+	  for (var i = 0; i < obj.length; i++) {
+	  	var name = obj[i];
+	  	output += '<li><strong class="green"><i class="fa fa-check-circle" aria-hidden="true"></i> ' + esc(name) + '</strong></li>';
+	  }
+	  document.getElementById('list').innerHTML = '<ul>' + output + '</ul>';
+	}
 };
 xhr.send();
 
@@ -119,10 +119,17 @@ xhr.send();
 	      	xhr.setRequestHeader('Content-Type', 'application/octet-stream');
 	      	xhr.onload = function(e) {
 	      		// TODO: Error handle?
-			    if (this.status == 200) {
-			      console.log("xhr", this.responseText);
-			      // TODO: Update UI?
-			    }
+	      		if ( xhr.readyState == 4 ) { 
+				    if (this.status == 200) {
+				      console.log("xhr", this.responseText);
+				      // TODO: Update UI?
+				    } else {
+				    	document.getElementById(id).innerHTML = '<strong class="red"><i class="fafa-exclamation" aria-hidden="true"></i> ' + esc(f.name) + '</strong>';
+				    }
+				}
+			};
+			xhr.onerror = function () {
+				document.getElementById(id).innerHTML = '<strong class="red"><i class="fa fa-exclamation" aria-hidden="true"></i> ' + esc(f.name) + '</strong>';
 			};
 	  		xhr.send(chunk);
 	  	}, function(f) {
