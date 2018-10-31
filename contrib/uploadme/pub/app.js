@@ -15,7 +15,7 @@ function prep(files) {
   for (var i = 0, f; f = files[i]; i++) {
     console.log(f);
     if (whitelist.indexOf(f.type) === -1) {
-    	output = '<li class="red"><strong><i class="fa fa-exclamation-triangle" aria-hidden="true"></i> Ignored: ' + htmlEscape(f.name) + '</strong>';
+    	var output = '<li class="red"><strong><i class="fa fa-exclamation-triangle" aria-hidden="true"></i> Ignored: ' + htmlEscape(f.name) + '</strong>';
     	document.getElementById('list').children[0].innerHTML += output;
     	return;
     }
@@ -23,7 +23,7 @@ function prep(files) {
     var id = 'result_' + uniq;
     uniq++;
 
-    chunkedReader(f, {
+    limitedChunkedReader(f, {
       chunkSize: 1 * 1024*1024, // 1mb
       id: id,
       fnChunk: function(f, bin, opts, fnNext) {
@@ -37,6 +37,7 @@ function prep(files) {
               console.log("xhr res=", this.responseText);
               if (this.responseText !== "OK.") {
                 document.getElementById(opts.id).innerHTML = '<strong class="red"><i class="fa fa-exclamation" aria-hidden="true"></i> ' + htmlEscape(f.name) + '</strong>';
+                fnNext(false);
                 return;
               }
 
@@ -47,18 +48,19 @@ function prep(files) {
                 $progress.style.width = percent + '%';
                 $progress.innerHTML = percent + '%';
               }
-              // TODO: Update UI?
               if (percent == 100) {
                 document.getElementById(opts.id).innerHTML = '<strong class="green"><i class="fa fa-check-circle" aria-hidden="true"></i> ' + htmlEscape(f.name) + '</strong>';
               }
-              fnNext();
+              fnNext(true);
             } else {
               document.getElementById(opts.id).innerHTML = '<strong class="red"><i class="fa fa-exclamation" aria-hidden="true"></i> ' + htmlEscape(f.name) + '</strong>';
+              fnNext(false);
             }
           }
         };
         xhr.onerror = function () {
           document.getElementById(opts.id).innerHTML = '<strong class="red"><i class="fa fa-exclamation" aria-hidden="true"></i> ' + htmlEscape(f.name) + '</strong>';
+          fnNext(false);
         };
         xhr.send(bin);
       }

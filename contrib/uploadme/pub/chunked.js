@@ -26,10 +26,15 @@ function chunkedReader(file, opts) {
 	console.log('chunkedReader.chunk file=' + self.file.name + ' offset=' + self.offset + ' offend=' + offend);
 	self.offset = offend;
 
-	var fn = function() {
+	var fn = function(ok) {
+		if (! ok) {
+			console.log("chunkedReader.cancel");
+			opts.fnDone(opts);
+			return;
+		}
 		if (self.offset >= self.file.size) {
 			console.log("chunkedReader.done");
-			//opts.fnDone(file, id);
+			opts.fnDone(opts);
 			return;
 		}
 		opts.idx++;
@@ -44,4 +49,34 @@ function chunkedReader(file, opts) {
 	this.r.readAsArrayBuffer(blob);
   }
   chunkReaderBlock.bind(self)();
+}
+
+var limit = 4;
+var queue = [];
+var workers = 0;
+function limitedChunkedReader(file, opts) {
+	if (workers === limit) {
+		// Wait!
+		queue.push({file: file, opts: opts});
+		return;
+	}
+
+	function next() {
+		// Done handler
+		// If anything is pending start that!
+		if (queue.length === 0) {
+			// Done, I quit
+			workers--;
+			return;
+		}
+
+		var job = queue.shift();
+		job.opts.fnDone = next;
+		chunkedReader(job.file, job.opts);
+	}
+
+	// Let it start
+	workers++;
+	opts.fnDone = next;
+	chunkedReader(file, opts);
 }
