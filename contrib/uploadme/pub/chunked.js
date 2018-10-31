@@ -67,6 +67,7 @@ function limitedChunkedReader(file, opts) {
 		if (queue.length === 0) {
 			// Done, I quit
 			workers--;
+			opts.chunksDone();
 			return;
 		}
 

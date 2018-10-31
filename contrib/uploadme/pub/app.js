@@ -1,6 +1,7 @@
 "use strict";
 var uniq = 0;
 var whitelist = ['audio/wav', 'audio/mp3'];
+//var notify = false;
 
 function htmlEscape(str) {
   return str
@@ -9,6 +10,14 @@ function htmlEscape(str) {
   .replace(/'/g, '&#39;')
   .replace(/</g, '&lt;')
   .replace(/>/g, '&gt;');
+}
+
+function done() {
+  console.log("done", window.notify);
+  if (window.notify) {
+    console.log("Show notify");
+    var notification = new Notification("Finished uploading all assets.");
+  }
 }
 
 function prep(files) {
@@ -26,6 +35,7 @@ function prep(files) {
     limitedChunkedReader(f, {
       chunkSize: 1 * 1024*1024, // 1mb
       id: id,
+      chunksDone: done,
       fnChunk: function(f, bin, opts, fnNext) {
         var xhr = new XMLHttpRequest();
         xhr.open('POST', '/action/uploads/chunk?f='+ encodeURIComponent(f.name) + '&i=' + opts.idx + "&total=" + opts.total, true);
@@ -88,6 +98,33 @@ function handleDragOver(evt) {
   evt.preventDefault();
   evt.dataTransfer.dropEffect = 'copy'; // Explicitly show this is a copy.
 }
+function handleNotify(e) {
+  var checked = e.target.checked;
+  if (! checked) {
+    console.log("Disable notify");
+    window.notify = checked;
+  } else {
+    if (!("Notification" in window)) {
+      alert("This browser does not support desktop notification");
+    // Let's check whether notification permissions have already been granted
+    } else if (Notification.permission === "granted") {
+      // All set
+      console.log("Enable notify");
+      window.notify = true;
+    } else {
+      // Ask
+      Notification.requestPermission().then(function (permission) {
+        // If the user accepts, let's create a notification
+        if (permission === "granted") {
+          console.log("Enable notify");
+          window.notify = true;
+        } else {
+          alert("Desktop notification are rejected by you.");
+        }
+      });
+    }
+  }
+}
 
 /*  init */
 var xhr = new XMLHttpRequest();
@@ -113,3 +150,4 @@ dropZone.addEventListener('dragover', handleDragOver, false);
 dropZone.addEventListener('drop', handleFileSelect, false);
 dropZone.addEventListener('click', handleFileClick, false);
 document.getElementById('files').addEventListener('change', handleFileChange, false);
+document.getElementById('js-notify').addEventListener('change', handleNotify, false);
