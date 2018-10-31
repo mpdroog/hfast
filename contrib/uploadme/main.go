@@ -241,7 +241,7 @@ func main() {
 	flag.BoolVar(&Verbose, "v", false, "Verbose-mode (log more)")
 	flag.Parse()
 
-	limit := ratelimit.Request(ratelimit.IP).Rate(60, time.Minute).LimitBy(memory.New()) // 60req/min
+	limit := ratelimit.Request(ratelimit.IP).Rate(200, time.Minute).LimitBy(memory.New()) // 200req/min
 	fs := gziphandler.GzipHandler(http.FileServer(http.Dir("./pub")))
 
 	mux := &http.ServeMux{}
