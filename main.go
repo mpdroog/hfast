@@ -26,6 +26,7 @@ type Overrides struct {
 	Proxy           string // Just forward to given addr
 	ExcludedDomains []string
 	Lang            []string
+	Admin           map[string]string // Admin user+pass
 }
 
 var (
@@ -258,6 +259,10 @@ func main() {
 
 		mux := &http.ServeMux{}
 		mux.Handle("/action/", AccessLog(action))
+		if (len(overrides.Admin) > 0) {
+			admin := gziphandler.GzipHandler(limit(BasicAuth(NewHandler(fmt.Sprintf("/var/www/%s/admin/index.php", domain), "tcp", "127.0.0.1:8000"), "Backend", overrides.Admin)))
+			mux.Handle("/admin/", AccessLog(admin))
+		}
 		mux.Handle("/", AccessLog(fs))
 		muxs[domain] = mux
 
