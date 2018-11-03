@@ -43,6 +43,7 @@ func init() {
 func push(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r.Host = strings.ToLower(r.Host)
+
 		w.Header().Set("Vary", "Accept-Encoding")
 		if assets, ok := pushAssets[r.Host]; r.URL.Path == "/" && ok {
 			if pusher, ok := w.(http.Pusher); ok {
@@ -208,6 +209,14 @@ func main() {
 		panic(e)
 	}
 
+
+	f, err := os.OpenFile("/var/log/hfast.access.log", os.O_APPEND|os.O_WRONLY, 0600)
+	if err != nil {
+	    panic(err)
+	}
+	defer f.Close()
+	SetLog(f)
+
 	// HACK
 	csp := []string{}
 	wwwDomains := []string{}
@@ -248,8 +257,8 @@ func main() {
 		action := gziphandler.GzipHandler(limit(NewHandler(fmt.Sprintf("/var/www/%s/action/index.php", domain), "tcp", "127.0.0.1:8000")))
 
 		mux := &http.ServeMux{}
-		mux.Handle("/action/", action)
-		mux.Handle("/", fs)
+		mux.Handle("/action/", AccessLog(action))
+		mux.Handle("/", AccessLog(fs))
 		muxs[domain] = mux
 
 		a, e := getPush(fmt.Sprintf("/var/www/%s/pub/push", domain))
