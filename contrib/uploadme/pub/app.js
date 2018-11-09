@@ -137,7 +137,7 @@ xhr.onload = function(e) {
     var output = '';
     for (var i = 0; i < obj.length; i++) {
       var name = obj[i];
-      output += '<li><strong class="green"><i class="fa fa-check-circle" aria-hidden="true"></i> ' + htmlEscape(name) + '</strong></li>';
+      output += '<li><strong class="green"><i class="fa fa-check-circle" aria-hidden="true"></i> ' + htmlEscape(name) + '</strong> <a href="#" class"js-del" data-idx="'+name+'"><i class="fa fa-trash"></i></a></li>';
     }
     document.getElementById('list').innerHTML = '<ul>' + output + '</ul>';
   }
@@ -151,3 +151,22 @@ dropZone.addEventListener('drop', handleFileSelect, false);
 dropZone.addEventListener('click', handleFileClick, false);
 document.getElementById('files').addEventListener('change', handleFileChange, false);
 document.getElementById('js-notify').addEventListener('change', handleNotify, false);
+
+document.getElementById("list").addEventListener("click", function(e) {
+  if (e.target.nodeName === "I" && e.target.parentNode.dataset.idx) {
+    var n = e.target.parentNode;
+    window.upload = {n: n};
+    console.log("Delete " + n.dataset.idx);
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '/action/uploads/rm?f=' + n.dataset.idx, true);
+    xhr.onload = function(ev) {
+      // TODO: Error handle?
+      if (this.status == 200) {
+        var n = window.upload.n.parentNode;
+        n.parentNode.removeChild(n);
+      }
+    };
+    xhr.send();
+  }
+});

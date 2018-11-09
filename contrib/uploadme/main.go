@@ -201,6 +201,37 @@ func chunk(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("OK."))
 }
 
+func rm(w http.ResponseWriter, r *http.Request) {
+	fname := r.URL.Query().Get("f")
+	if len(fname) == 0 {
+		http.Error(w, "missing GET[f]", 400)
+		return
+	}
+
+	hash := fmt.Sprintf("%x", sha256.Sum256([]byte(stripPort(r.RemoteAddr))))
+	fdir := "./files/" + hash
+	exist, e := exists(fdir)
+	if e != nil {
+		log.Println("Failed stat: " + fdir)
+		http.Error(w, "Failed getting status", 500)
+		return
+	}
+	if !exist {
+		http.Error(w, "No such file", 404)
+		return
+	}
+	
+	f := fdir+"/"+fname+".json"
+	if e := os.Remove(f); e != nil {
+		log.Println("Failed rm: " + f)
+		http.Error(w, "Failed deleting", 500)
+		return
+	}
+
+	log.Println("Removed " + f)
+	w.Write([]byte("OK."))
+}
+
 func stripPort(hostport string) string {
 	host, _, err := net.SplitHostPort(hostport)
 	if err != nil {
@@ -247,6 +278,7 @@ func main() {
 	mux := &http.ServeMux{}
 	mux.HandleFunc("/action/uploads", status)
 	mux.HandleFunc("/action/uploads/chunk", chunk)
+	mux.HandleFunc("/action/uploads/rm", rm)
 	mux.Handle("/", fs)
 
 	s := &http.Server{
