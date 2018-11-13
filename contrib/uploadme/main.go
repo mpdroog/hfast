@@ -232,6 +232,42 @@ func rm(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("OK."))
 }
 
+func play(w http.ResponseWriter, r *http.Request) {
+	fname := r.URL.Query().Get("f")
+	if len(fname) == 0 {
+		http.Error(w, "missing GET[f]", 400)
+		return
+	}
+
+	hash := fmt.Sprintf("%x", sha256.Sum256([]byte(stripPort(r.RemoteAddr))))
+	fdir := "./files/" + hash + "/" + fname
+	exist, e := exists(fdir)
+	if e != nil {
+		log.Println("Failed stat: " + fdir)
+		http.Error(w, "Failed getting status", 500)
+		return
+	}
+	if !exist {
+		http.Error(w, "No such file", 404)
+		return
+	}
+
+	fd, e := os.Open(fdir)
+	if e != nil {
+		log.Println("Failed open: " + fdir)
+		http.Error(w, "Failed reading file", 500)
+		return
+	}
+	defer fd.Close()
+
+	// TODO: Better perf with bufferedreader
+	if _, e := io.Copy(w, fd); e != nil {
+		log.Println("io.Copy: " + e.Error())
+		http.Error(w, "Failed proxying file", 500)
+		return
+	}
+}
+
 func stripPort(hostport string) string {
 	host, _, err := net.SplitHostPort(hostport)
 	if err != nil {
@@ -279,6 +315,7 @@ func main() {
 	mux.HandleFunc("/action/uploads", status)
 	mux.HandleFunc("/action/uploads/chunk", chunk)
 	mux.HandleFunc("/action/uploads/rm", rm)
+	mux.HandleFunc("/action/uploads/play", play)
 	mux.Handle("/", fs)
 
 	s := &http.Server{

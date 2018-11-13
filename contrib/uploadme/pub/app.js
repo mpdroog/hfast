@@ -137,7 +137,7 @@ xhr.onload = function(e) {
     var output = '';
     for (var i = 0; i < obj.length; i++) {
       var name = obj[i];
-      output += '<li><strong class="green"><i class="fa fa-check-circle" aria-hidden="true"></i> ' + htmlEscape(name) + '</strong> <a href="#" class"js-del" data-idx="'+name+'"><i class="fa fa-trash"></i></a></li>';
+      output += '<li><strong class="green"><i class="fa fa-check-circle" aria-hidden="true"></i> ' + htmlEscape(name) + '</strong> <a href="#" class"js-del" data-idx="'+name+'"><i class="fa fa-trash"></i></a> <audio src="/action/uploads/play/?f=' + name + '.0" preload="auto"></audio></li>';
     }
     document.getElementById('list').innerHTML = '<ul>' + output + '</ul>';
   }
@@ -170,3 +170,7 @@ document.getElementById("list").addEventListener("click", function(e) {
     xhr.send();
   }
 });
+
+audiojs.events.ready(function() {
+    audiojs.createAll();
+  });
