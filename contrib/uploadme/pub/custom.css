@@ -1,0 +1,50 @@
+body {
+	color: #333;
+}
+.red {
+	color: red;
+}
+.green {
+	color: green;
+}
+#drop_zone {
+	background-color: #fafafa;
+    border: 2px dashed gray;
+    -moz-border-radius: 5px;
+    -webkit-border-radius: 5px;
+    border-radius: 5px;
+    padding: 25px;
+    text-align: center;
+    font: 20pt bold 'Vollkorn';
+    cursor: pointer;
+}
+#files {
+	display: none;
+}
+#list {
+	margin-top: 10px;
+}
+#list ul {
+	list-style-type: none;
+}
+
+/* progress */
+.progress_bar {
+	display: inline-block;
+	    width: 200px;
+margin: 10px 0;
+padding: 3px;
+border: 1px solid #000;
+font-size: 14px;
+-moz-transition: opacity 1s linear;
+-o-transition: opacity 1s linear;
+-webkit-transition: opacity 1s linear;
+}
+.progress_bar.loading {
+opacity: 1.0;
+}
+.progress_bar .percent {
+background-color: #99ccff;
+height: auto;
+width: 0;
+}

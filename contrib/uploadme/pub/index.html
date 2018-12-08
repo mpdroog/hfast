@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>UploadMe</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <link href="/fa/css/font-awesome.min.css" rel="stylesheet">
+<link href="/bootstrap.min.css" rel="stylesheet">
+<link href="/custom.css" rel="stylesheet">
+ </head>
+ <body>
+ <div class="container">
+ 	<h1>Uploadme</h1>
+ 	<input type="file" id="files" multiple />
+	<div id="drop_zone">
+		<p><i class="fa-5x fa fa-cloud-upload"></i></p>
+		Drop MP3/WAV here (or click to select)
+	</div>
+	<p><label for="js-notify"><input type="checkbox" id="js-notify"/> Notify me when finished.</label></p>
+	<output id="list">Loading assets..</output>
+</div>
+
+<script src="/audiojs/audio.min.js"></script>
+<script src="/chunked.js"></script>
+<script src="/app.js"></script>
+
+ </body>
+</html>
