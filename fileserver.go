@@ -539,6 +539,10 @@ func serveFile(w http.ResponseWriter, r *http.Request, fs FileSystem, name strin
 		localRedirect(w, r, "./")
 		return
 	}
+	if strings.HasSuffix(name, ".php") {
+		http.Error(w, "Action prohibited.", http.StatusForbidden)
+		return		
+	}
 
 	f, err := fs.Open(name)
 	if err != nil {

@@ -139,3 +139,21 @@ func TestDir(t *testing.T) {
 		log.Printf("Err, file not returned, body=" + string(body))
 	}
 }
+
+func TestPHP(t *testing.T) {
+	res, e := call("/script.php")
+	if e != nil {
+		log.Fatal(e)
+	}
+
+	if res.StatusCode != http.StatusForbidden {
+		log.Printf("Err, wrong HTTP-code")
+	}
+	body, e := ioutil.ReadAll(res.Body)
+	if e != nil {
+		log.Fatal(e)
+	}
+	if string(body) != "Action prohibited.\n" {
+		log.Printf("Err, prohibit-msg not shows, body=" + string(body))
+	}
+}
