@@ -526,6 +526,12 @@ func checkPreconditions(w http.ResponseWriter, r *http.Request, modtime time.Tim
 func serveFile(w http.ResponseWriter, r *http.Request, fs FileSystem, name string, redirect bool) {
 	const indexPage = "/index.html"
 
+	if strings.Contains(r.URL.Path, "/.") {
+		// Don't allow dot prefixed paths (.git, .htaccess etc..)
+		http.Error(w, "Action prohibited.", http.StatusForbidden)
+		return
+	}
+
 	// redirect .../index.html to .../
 	// can't use Redirect() because that would make the path absolute,
 	// which would be a problem running under StripPrefix
