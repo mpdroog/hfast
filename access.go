@@ -3,9 +3,9 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"time"
-	"io"
 )
 
 var mw io.Writer
@@ -15,7 +15,7 @@ func SetLog(w io.Writer) {
 }
 
 func AccessLog(h http.Handler) http.Handler {
-	// TODO: 
+	// TODO:
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		begin := time.Now()
 		h.ServeHTTP(w, r)

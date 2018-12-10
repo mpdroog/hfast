@@ -210,10 +210,9 @@ func main() {
 		panic(e)
 	}
 
-
 	f, err := os.OpenFile("/var/log/hfast.access.log", os.O_APPEND|os.O_WRONLY, 0600)
 	if err != nil {
-	    panic(err)
+		panic(err)
 	}
 	defer f.Close()
 	SetLog(f)
@@ -259,7 +258,7 @@ func main() {
 
 		mux := &http.ServeMux{}
 		mux.Handle("/action/", AccessLog(action))
-		if (len(overrides.Admin) > 0) {
+		if len(overrides.Admin) > 0 {
 			admin := gziphandler.GzipHandler(limit(BasicAuth(NewHandler(fmt.Sprintf("/var/www/%s/admin/index.php", domain), "tcp", "127.0.0.1:8000"), "Backend", overrides.Admin)))
 			mux.Handle("/admin/", AccessLog(admin))
 		}

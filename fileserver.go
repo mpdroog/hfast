@@ -541,7 +541,7 @@ func serveFile(w http.ResponseWriter, r *http.Request, fs FileSystem, name strin
 	}
 	if strings.HasSuffix(name, ".php") {
 		http.Error(w, "Action prohibited.", http.StatusForbidden)
-		return		
+		return
 	}
 
 	f, err := fs.Open(name)

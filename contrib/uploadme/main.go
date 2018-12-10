@@ -220,8 +220,8 @@ func rm(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "No such file", 404)
 		return
 	}
-	
-	f := fdir+"/"+fname+".json"
+
+	f := fdir + "/" + fname + ".json"
 	if e := os.Remove(f); e != nil {
 		log.Println("Failed rm: " + f)
 		http.Error(w, "Failed deleting", 500)

@@ -3,13 +3,13 @@
 package main
 
 import (
-	"fmt"
 	"flag"
+	"fmt"
 	"net/http"
-	"time"
 	"os"
-	"syscall"
 	"os/signal"
+	"syscall"
+	"time"
 )
 
 func fs(w http.ResponseWriter, r *http.Request) {
@@ -31,13 +31,13 @@ func main() {
 	flag.Parse()
 
 	dir, e := os.Getwd()
-		if e != nil {
-			fmt.Printf("getwd e=%s\n", e.Error())
+	if e != nil {
+		fmt.Printf("getwd e=%s\n", e.Error())
 	}
 
-		mux := &http.ServeMux{}
-		mux.Handle("/action/", NewHandler(dir + "/action/index.php", "tcp", "127.0.0.1:9000"))
-		mux.HandleFunc("/", fs)
+	mux := &http.ServeMux{}
+	mux.Handle("/action/", NewHandler(dir+"/action/index.php", "tcp", "127.0.0.1:9000"))
+	mux.HandleFunc("/", fs)
 
 	s := &http.Server{
 		Addr:         httpListen,
@@ -51,7 +51,7 @@ func main() {
 	signal.Notify(sigOS, syscall.SIGTERM)
 
 	go func() {
-            panic(s.ListenAndServe())
-        }()
+		panic(s.ListenAndServe())
+	}()
 	<-sigOS
 }

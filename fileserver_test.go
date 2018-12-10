@@ -1,14 +1,14 @@
 package main
 
 import (
-	"testing"
-	"net/http"
-	"io/ioutil"
-	"fmt"
-	"time"
-	"log"
 	"crypto/rand"
+	"fmt"
+	"io/ioutil"
+	"log"
 	mbig "math/big"
+	"net/http"
+	"testing"
+	"time"
 )
 
 var (
@@ -21,7 +21,7 @@ func init() {
 	http.Handle("/", fs)
 
 	d, err := rand.Int(rand.Reader, mbig.NewInt(0xFFFF))
-	if err != nil{
+	if err != nil {
 		log.Fatal(err)
 	}
 
