@@ -13,3 +13,5 @@ Subject = "Journald diff"
 https://en.wikipedia.org/wiki/Syslog#Severity_level
 [Services.hfast]
 severity = 7
+# https://golang.org/pkg/path/filepath/#Match
+filters = ["Unmatched host: 80.101.48.69*", "Unmatched host: 127.0.0.1*", "*tls: client offered an unsupported, maximum protocol version of 300", "*tls: unexpected message"]

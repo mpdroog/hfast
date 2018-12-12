@@ -13,6 +13,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"path/filepath"
 )
 
 var (
@@ -122,6 +123,7 @@ run:
 				break
 			}
 			severity := 5
+			filters := []string{}
 
 			unit := d.Fields["_SYSTEMD_UNIT"]
 			if len(unit) > 0 {
@@ -131,6 +133,7 @@ run:
 
 			if override, ok := config.C.Services[unit]; ok {
 				severity = override.Severity
+				filters = override.Filters
 			}
 
 			prio, e := strconv.Atoi(d.Fields["PRIORITY"])
@@ -144,6 +147,21 @@ run:
 				}
 				continue
 			}
+			// Filter messages out
+			for _, filter := range filters {
+				m, e := filepath.Match(filter, d.Fields["MESSAGE"])
+				if e != nil {
+					fmt.Printf("WARN: filepath.Match=" + e.Error())
+				}
+				if m {
+					if verbose {
+						fmt.Printf("IGNORE [%s!%d>%d] %s\n", unit, prio, severity, d.Fields["MESSAGE"])
+					}
+					continue
+				}
+			}
+
+
 			lastCursor = d.Cursor
 			// https://www.freedesktop.org/software/systemd/man/systemd.journal-fields.html
 			txt += fmt.Sprintf("[%s!%s] %s\n", d.Fields["_SYSTEMD_UNIT"], d.Fields["PRIORITY"], d.Fields["MESSAGE"])
