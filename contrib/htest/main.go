@@ -54,4 +54,5 @@ func main() {
 		panic(s.ListenAndServe())
 	}()
 	<-sigOS
+	s.Close()
 }
