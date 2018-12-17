@@ -148,17 +148,25 @@ run:
 				continue
 			}
 			// Filter messages out
+			skip := false
 			for _, filter := range filters {
 				m, e := filepath.Match(filter, d.Fields["MESSAGE"])
 				if e != nil {
 					fmt.Printf("WARN: filepath.Match=" + e.Error())
 				}
-				if m {
-					if verbose {
-						fmt.Printf("IGNORE [%s!%d>%d] %s\n", unit, prio, severity, d.Fields["MESSAGE"])
-					}
-					continue
+				if verbose {
+					fmt.Printf("Match(%s <=> %s) = %d", filter, d.Fields["MESSAGE"], m)
 				}
+				if m {
+					skip = true
+					break
+				}
+			}
+			if skip {
+				if verbose {
+					fmt.Printf("IGNORE [%s!%d>%d] %s\n", unit, prio, severity, d.Fields["MESSAGE"])
+				}
+				continue
 			}
 
 
