@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"github.com/mpdroog/hfast/logger"
 )
 
 // The algorithm uses at most sniffLen bytes to make its decision.
@@ -624,7 +625,7 @@ func toHTTPError(err error) (msg string, httpStatus int) {
 		return "403 Forbidden", http.StatusForbidden
 	}
 	// Default:
-	fmt.Printf("HTTP err=" + err.Error() + "\n")
+	logger.Printf("HTTP err=" + err.Error() + "\n")
 	return "500 Internal Server Error", http.StatusInternalServerError
 }
 

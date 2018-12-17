@@ -1,7 +1,7 @@
 package proxy
 
 import (
-	"log"
+	"github.com/mpdroog/hfast/logger"
 	"net/http"
 )
 
@@ -11,7 +11,7 @@ func PrettyError(w http.ResponseWriter) {
 	w.WriteHeader(500)
 
 	if _, e := w.Write([]byte("500 - Failed forwarding.")); e != nil {
-		log.Printf("Failed writing err=", e.Error())
+		logger.Printf("Failed writing err=", e.Error())
 	}
 }
 

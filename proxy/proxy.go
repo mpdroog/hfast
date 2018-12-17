@@ -2,10 +2,10 @@
 package proxy
 
 import (
+"github.com/mpdroog/hfast/logger"
 	"context"
 	"github.com/vulcand/oxy/utils"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"strings"
@@ -31,12 +31,12 @@ func Proxy(to string) (http.HandlerFunc, error) {
 		defer req.Body.Close()
 
 		req.Header.Set("X-HFast", "0.1.0")
-		//log.Printf("Host(%s) -> %s\n", req.Host, to+req.URL.String())
+		//config.L.Printf("Host(%s) -> %s\n", req.Host, to+req.URL.String())
 
 		dest := to + req.URL.String()
 		proxReq, e := http.NewRequest(req.Method, dest, req.Body)
 		if e != nil {
-			log.Printf("newRequest(%s) %s\n", dest, e.Error())
+			logger.Printf("newRequest(%s) %s\n", dest, e.Error())
 			PrettyError(w)
 			return
 		}
@@ -53,7 +53,7 @@ func Proxy(to string) (http.HandlerFunc, error) {
 			// ignore timeouts when client went away
 			clientErr := strings.Contains(e.Error(), "Client.Timeout exceeded while awaiting headers")
 			if !clientErr {
-				log.Printf("netClient.Get(%s) %s\n", dest, e.Error())
+				logger.Printf("netClient.Get(%s) %s\n", dest, e.Error())
 			}
 			PrettyError(w)
 			return
@@ -64,7 +64,7 @@ func Proxy(to string) (http.HandlerFunc, error) {
 		w.WriteHeader(res.StatusCode)
 		_, e = io.Copy(w, res.Body)
 		if e != nil {
-			log.Printf("Failed writing buf to client. e=%s\n", e.Error())
+			logger.Printf("Failed writing buf to client. e=%s\n", e.Error())
 		}
 	}), nil
 }

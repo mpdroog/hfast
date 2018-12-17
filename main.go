@@ -9,12 +9,12 @@ import (
 	"github.com/VojtechVitek/ratelimit"
 	"github.com/VojtechVitek/ratelimit/memory"
 	"github.com/coreos/go-systemd/daemon"
+	"github.com/mpdroog/hfast/logger"
 	"github.com/mpdroog/hfast/proxy"
 	"github.com/unrolled/secure"
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/text/language"
 	"io/ioutil"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -50,7 +50,7 @@ func push(h http.Handler) http.Handler {
 			if pusher, ok := w.(http.Pusher); ok {
 				for _, asset := range assets {
 					if err := pusher.Push(asset, nil); err != nil {
-						log.Printf("Failed push: %v", err)
+						logger.Printf("Failed push: %v", err)
 						break
 					}
 				}
@@ -101,7 +101,13 @@ func (rh *redirectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, ok := muxs[host]; !ok {
-		log.Printf("Unmatched host: %s", host)
+		logger.Printf("Unmatched host: %s", host)
+
+		if mux, ok := muxs["default"]; ok {
+			mux.ServeHTTP(w, r)
+			return
+		}
+
 		http.Error(w, "ERR: No such site.", http.StatusBadRequest)
 		return
 	}
@@ -124,8 +130,8 @@ func vhost() http.HandlerFunc {
 			return
 		}
 		m, ok := muxs[r.Host]
-		if !ok {
-			log.Printf("Unmatched host: %s", r.Host)
+		if !ok || r.Host == "default" {
+			logger.Printf("Unmatched host: %s", r.Host)
 			w.Write([]byte("ERR: No such site."))
 			return
 		}
@@ -222,6 +228,14 @@ func main() {
 	wwwDomains := []string{}
 
 	for _, domain := range domains {
+		if domain == "default" {
+			// Fallback domain
+			fs := gziphandler.GzipHandler(push(FileServer(Dir(fmt.Sprintf("/var/www/%s/pub", domain)))))
+			mux := &http.ServeMux{}
+			mux.Handle("/", fs)
+			muxs[domain] = mux
+			continue
+		}
 		overrides, e := getOverrides(fmt.Sprintf("/var/www/%s/override.toml", domain))
 		if e != nil {
 			panic(e)
@@ -307,11 +321,11 @@ func main() {
 
 	sent, e := daemon.SdNotify(false, "READY=1")
 	if e != nil {
-		log.Fatal(e)
+		logger.Fatal(e)
 	}
 	if !sent {
-		log.Printf("SystemD notify NOT sent\n")
+		logger.Printf("SystemD notify NOT sent\n")
 	}
 
-	log.Panic(s.ListenAndServeTLS("", ""))
+	logger.Fatal(s.ListenAndServeTLS("", ""))
 }
