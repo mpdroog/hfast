@@ -10,6 +10,7 @@ Why?
 - TLS by default, no config! (LetsEncrypt)
 - Ratelimit by default on PHP
 - Proper caching/security headers everywhere
+- base64 auth protected /admin to put sensitive stuff behind.
 
 How?
 - You need to place files in the pre-defined project structure
@@ -25,6 +26,16 @@ chmod 644 /etc/systemd/system/hfast.service
 systemctl daemon-reload
 systemctl enable hfast
 systemctl start hfast
+```
+
+Example overrides.toml
+```
+type Overrides struct {
+	Proxy           string // Just forward to given addr:port
+	ExcludedDomains []string // CSP-domains added to header (allowing external CSS/JS)
+	Lang            []string // Auto redirect to supported pub/[lang]
+	Admin           map[string]string // Admin user+pass for backend
+}
 ```
 
 Future plan(s)
