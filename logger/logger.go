@@ -13,16 +13,18 @@ import (
 	"runtime"
 )
 
-var L *log.Logger
+var (
+	L *log.Logger
+)
 
 func init() {
 	L = log.New(os.Stderr, "", 0)
 }
 
 // https://github.com/op/go-logging/blob/master/format.go
-func fnName() string {
+func fnName(pos int) string {
 	v := "???"
-	if pc, _, _, ok := runtime.Caller(2); ok {
+	if pc, _, _, ok := runtime.Caller(pos); ok {
 		if f := runtime.FuncForPC(pc); f != nil {
 			v = f.Name()
 		}
@@ -32,7 +34,7 @@ func fnName() string {
 
 func Printf(msg string, args ...interface{}) {
 	L.Printf(
-		fmt.Sprintf("@%s: %s", fnName(), msg),
+		fmt.Sprintf("@%s: %s", fnName(2), msg),
 		args...
 	)
 }
@@ -42,4 +44,8 @@ func Fatal(e error) {
 		Printf(e.Error())
 		os.Exit(1)
 	}
+}
+
+func Logger(prefix string) *log.Logger {
+	return log.New(os.Stderr, prefix, 0)
 }
