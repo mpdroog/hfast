@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/tls"
 	"flag"
 	"fmt"
 	"github.com/BurntSushi/toml"
@@ -311,13 +310,27 @@ func main() {
 	app := secureMiddleware.Handler(vhost())
 	s := &http.Server{
 		Addr:         ":443",
-		TLSConfig:    &tls.Config{GetCertificate: m.GetCertificate},
-		Handler:      app,
+		TLSConfig:    m.TLSConfig(),
+		Handler:      RecoverWrap(app),
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  15 * time.Second,
+		ErrorLog:     logger.Logger("@main.https-server: "),
 	}
 
-	go http.ListenAndServe(httpListen, m.HTTPHandler(&redirectHandler{}))
+	go func() {
+		s := &http.Server{
+			Addr:         httpListen,
+			Handler:      RecoverWrap(m.HTTPHandler(&redirectHandler{})),
+			ReadTimeout:  5 * time.Second,
+			WriteTimeout: 10 * time.Second,
+			IdleTimeout:  15 * time.Second,
+			ErrorLog:     logger.Logger("@main.http-server: "),
+		}
+		if e := s.ListenAndServe(); e != nil && e != http.ErrServerClosed {
+			logger.Fatal(e)
+		}
+	}()
 
 	sent, e := daemon.SdNotify(false, "READY=1")
 	if e != nil {
@@ -327,5 +340,7 @@ func main() {
 		logger.Printf("SystemD notify NOT sent\n")
 	}
 
-	logger.Fatal(s.ListenAndServeTLS("", ""))
+	if e := s.ListenAndServeTLS("", ""); e != nil && e != http.ErrServerClosed {
+		logger.Fatal(e)
+	}
 }
