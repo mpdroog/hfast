@@ -149,13 +149,14 @@ run:
 			}
 			// Filter messages out
 			skip := false
+			msg := strings.TrimSpace(d.Fields["MESSAGE"])
 			for _, filter := range filters {
-				m, e := filepath.Match(filter, d.Fields["MESSAGE"])
+				m, e := filepath.Match(filter, msg)
 				if e != nil {
 					fmt.Printf("WARN: filepath.Match=" + e.Error())
 				}
 				if verbose {
-					fmt.Printf("Match(%s <=> %s) = %d", filter, d.Fields["MESSAGE"], m)
+					fmt.Printf("Match(%s <=> %s) = %t\n", filter, msg, m)
 				}
 				if m {
 					skip = true
@@ -164,7 +165,7 @@ run:
 			}
 			if skip {
 				if verbose {
-					fmt.Printf("IGNORE [%s!%d>%d] %s\n", unit, prio, severity, d.Fields["MESSAGE"])
+					fmt.Printf("IGNORE [%s!%d>%d] %s\n", unit, prio, severity, msg)
 				}
 				continue
 			}
@@ -172,7 +173,7 @@ run:
 
 			lastCursor = d.Cursor
 			// https://www.freedesktop.org/software/systemd/man/systemd.journal-fields.html
-			txt += fmt.Sprintf("[%s!%s] %s\n", d.Fields["_SYSTEMD_UNIT"], d.Fields["PRIORITY"], d.Fields["MESSAGE"])
+			txt += fmt.Sprintf("[%s!%s] %s\n", d.Fields["_SYSTEMD_UNIT"], d.Fields["PRIORITY"], msg)
 		}
 		if txt != "" {
 			// We got something, MAIL IT
