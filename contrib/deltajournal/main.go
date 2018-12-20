@@ -173,7 +173,7 @@ run:
 
 			lastCursor = d.Cursor
 			// https://www.freedesktop.org/software/systemd/man/systemd.journal-fields.html
-			txt += fmt.Sprintf("[%s!%s] %s\n", d.Fields["_SYSTEMD_UNIT"], d.Fields["PRIORITY"], msg)
+			txt += fmt.Sprintf("[%s!%d] %s\n", unit, prio, msg)
 		}
 		if txt != "" {
 			// We got something, MAIL IT
