@@ -185,14 +185,15 @@ run:
 			}
 		}
 
+		if e := ioutil.WriteFile(stateFile, []byte(cursor), 0644); e != nil {
+			fmt.Printf("WARN: stateFile.save e=%s\n", e.Error())
+		}
+
 		select {
 		case _ = <-sigOS:
 			// OS wants us dead
 			break run
 		case _ = <-ticker:
-			if e := ioutil.WriteFile(stateFile, []byte(cursor), 0644); e != nil {
-				fmt.Printf("WARN: stateFile.save e=%s\n", e.Error())
-			}
 			// Next run, move back to start of for
 		}
 	}
