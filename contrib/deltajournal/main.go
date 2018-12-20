@@ -141,9 +141,9 @@ run:
 				fmt.Printf("WARN: strconv.Atoi(%s) e=%s\n", d.Fields["PRIORITY"], e.Error())
 			}
 
-			if prio > severity {
+			if prio < severity {
 				if verbose {
-					fmt.Printf("IGNORE [%s!%d>%d] %s\n", unit, prio, severity, d.Fields["MESSAGE"])
+					fmt.Printf("IGNORE [%s!%d>=%d] %s\n", unit, prio, severity, d.Fields["MESSAGE"])
 				}
 				continue
 			}
