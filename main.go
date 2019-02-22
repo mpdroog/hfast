@@ -268,7 +268,6 @@ func main() {
 
 		fs := gziphandler.GzipHandler(push(FileServer(Dir(fmt.Sprintf("/var/www/%s/pub", domain)))))
 		limit := ratelimit.Request(ratelimit.IP).Rate(30, time.Minute).LimitBy(memory.New()) // 30req/min
-		action := gziphandler.GzipHandler(limit(NewHandler(fmt.Sprintf("/var/www/%s/action/index.php", domain), "tcp", "127.0.0.1:8000")))
 
 		mux := &http.ServeMux{}
 		if len(overrides.Admin) > 0 {
@@ -276,9 +275,11 @@ func main() {
 			mux.Handle("/admin/", AccessLog(admin))
 		}
 		if (overrides.DevMode) {
-			mux.Handle("/action/", BasicAuth(AccessLog(action), "Backend", overrides.Admin))
+			action := gziphandler.GzipHandler(limit(BasicAuth(NewHandler(fmt.Sprintf("/var/www/%s/action/index.php", domain), "tcp", "127.0.0.1:8000"), "Backend", overrides.Admin)))
+			mux.Handle("/action/", AccessLog(action))
 			mux.Handle("/", BasicAuth(AccessLog(fs), "Backend", overrides.Admin))
 		} else {
+			action := gziphandler.GzipHandler(limit(NewHandler(fmt.Sprintf("/var/www/%s/action/index.php", domain), "tcp", "127.0.0.1:8000")))
 			mux.Handle("/action/", AccessLog(action))
 			mux.Handle("/", AccessLog(fs))
 		}
