@@ -26,6 +26,7 @@ type Overrides struct {
 	ExcludedDomains []string
 	Lang            []string
 	Admin           map[string]string // Admin user+pass
+	DevMode         bool // Only allow admin user+pass
 }
 
 var (
@@ -270,12 +271,17 @@ func main() {
 		action := gziphandler.GzipHandler(limit(NewHandler(fmt.Sprintf("/var/www/%s/action/index.php", domain), "tcp", "127.0.0.1:8000")))
 
 		mux := &http.ServeMux{}
-		mux.Handle("/action/", AccessLog(action))
 		if len(overrides.Admin) > 0 {
 			admin := gziphandler.GzipHandler(limit(BasicAuth(NewHandler(fmt.Sprintf("/var/www/%s/admin/index.php", domain), "tcp", "127.0.0.1:8000"), "Backend", overrides.Admin)))
 			mux.Handle("/admin/", AccessLog(admin))
 		}
-		mux.Handle("/", AccessLog(fs))
+		if (overrides.DevMode) {
+			mux.Handle("/action/", BasicAuth(AccessLog(action), "Backend", overrides.Admin))
+			mux.Handle("/", BasicAuth(AccessLog(fs), "Backend", overrides.Admin))
+		} else {
+			mux.Handle("/action/", AccessLog(action))
+			mux.Handle("/", AccessLog(fs))
+		}
 		muxs[domain] = mux
 
 		a, e := getPush(fmt.Sprintf("/var/www/%s/pub/push", domain))
