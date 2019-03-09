@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"time"
+	"github.com/mpdroog/hfast/logger"
 )
 
 var mw io.Writer
@@ -21,7 +22,12 @@ func AccessLog(h http.Handler) http.Handler {
 		h.ServeHTTP(w, r)
 
 		diff := time.Since(begin)
-		log := fmt.Sprintf("time=%s host=%s method=%s url=%s ip=%s dur=%dns\n", time.Now().Unix(), r.Host, r.Method, r.URL, r.RemoteAddr, diff.Nanoseconds())
-		mw.Write([]byte(log))
+		msg := fmt.Sprintf("%s %s%s remote=%s ratelimit.remain=%s dur=%dns\n", r.Method, r.Host, r.URL, r.RemoteAddr, w.Header().Get("X-Ratelimit-Remaining"), diff.Nanoseconds())
+
+		if int(diff.Seconds()) > 5 {
+			logger.Printf("perf-warning(taking longer than 5sec): " + msg)
+		}
+
+		mw.Write([]byte(msg))
 	})
 }
