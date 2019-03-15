@@ -31,7 +31,7 @@ systemctl start hfast
 Example overrides.toml
 ```
 type Overrides struct {
-	Proxy           string // Just forward to given addr:port
+	Proxy           string // Just forward to given http(s)://addr:port
 	ExcludedDomains []string // CSP-domains added to header (allowing external CSS/JS)
 	Lang            []string // Auto redirect to supported pub/[lang]
 	Admin           map[string]string // Admin user+pass for backend
