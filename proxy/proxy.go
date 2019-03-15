@@ -2,7 +2,7 @@
 package proxy
 
 import (
-"github.com/mpdroog/hfast/logger"
+	"github.com/mpdroog/hfast/logger"
 	"context"
 	"github.com/vulcand/oxy/utils"
 	"io"
@@ -10,9 +10,13 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"fmt"
 )
 
 func Proxy(to string) (http.HandlerFunc, error) {
+	if !strings.HasPrefix(to, "http://") && !strings.HasPrefix(to, "https://") {
+		return nil, fmt.Errorf("to(%s) does not begin with http:// nor https://")
+	}
 	var netTransport = &http.Transport{
 		Dial: (&net.Dialer{
 			Timeout: 5 * time.Second,
@@ -31,8 +35,6 @@ func Proxy(to string) (http.HandlerFunc, error) {
 		defer req.Body.Close()
 
 		req.Header.Set("X-HFast", "0.1.0")
-		//config.L.Printf("Host(%s) -> %s\n", req.Host, to+req.URL.String())
-
 		dest := to + req.URL.String()
 		proxReq, e := http.NewRequest(req.Method, dest, req.Body)
 		if e != nil {
