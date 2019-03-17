@@ -253,7 +253,11 @@ func main() {
 				panic(e)
 			}
 			mux := &http.ServeMux{}
-			mux.Handle("/", fn)
+			if (overrides.DevMode) {
+				mux.Handle("/", BasicAuth(fn, "Backend", overrides.Admin))
+			} else {
+				mux.Handle("/", fn)
+			}
 			muxs[domain] = mux
 			continue
 		}
