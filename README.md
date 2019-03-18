@@ -35,6 +35,7 @@ type Overrides struct {
 	ExcludedDomains []string // CSP-domains added to header (allowing external CSS/JS)
 	Lang            []string // Auto redirect to supported pub/[lang]
 	Admin           map[string]string // Admin user+pass for backend
+	Authlist        map[string]bool // Whitelist with IP=>true, Blacklist with IP=>false
 }
 ```
 

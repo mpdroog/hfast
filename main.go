@@ -27,6 +27,7 @@ type Overrides struct {
 	Lang            []string
 	Admin           map[string]string // Admin user+pass
 	DevMode         bool // Only allow admin user+pass
+	Authlist        map[string]bool
 }
 
 var (
@@ -254,9 +255,9 @@ func main() {
 			}
 			mux := &http.ServeMux{}
 			if (overrides.DevMode) {
-				mux.Handle("/", BasicAuth(fn, "Backend", overrides.Admin))
+				mux.Handle("/", AccessLog(BasicAuth(fn, "Backend", overrides.Admin, overrides.Authlist)))
 			} else {
-				mux.Handle("/", fn)
+				mux.Handle("/", AccessLog(fn))
 			}
 			muxs[domain] = mux
 			continue
@@ -275,13 +276,13 @@ func main() {
 
 		mux := &http.ServeMux{}
 		if len(overrides.Admin) > 0 {
-			admin := gziphandler.GzipHandler(limit(BasicAuth(NewHandler(fmt.Sprintf("/var/www/%s/admin/index.php", domain), "tcp", "127.0.0.1:8000"), "Backend", overrides.Admin)))
+			admin := gziphandler.GzipHandler(limit(BasicAuth(NewHandler(fmt.Sprintf("/var/www/%s/admin/index.php", domain), "tcp", "127.0.0.1:8000"), "Backend", overrides.Admin, overrides.Authlist)))
 			mux.Handle("/admin/", AccessLog(admin))
 		}
 		if (overrides.DevMode) {
-			action := gziphandler.GzipHandler(limit(BasicAuth(NewHandler(fmt.Sprintf("/var/www/%s/action/index.php", domain), "tcp", "127.0.0.1:8000"), "Backend", overrides.Admin)))
+			action := gziphandler.GzipHandler(limit(BasicAuth(NewHandler(fmt.Sprintf("/var/www/%s/action/index.php", domain), "tcp", "127.0.0.1:8000"), "Backend", overrides.Admin, overrides.Authlist)))
 			mux.Handle("/action/", AccessLog(action))
-			mux.Handle("/", BasicAuth(AccessLog(fs), "Backend", overrides.Admin))
+			mux.Handle("/", BasicAuth(AccessLog(fs), "Backend", overrides.Admin, overrides.Authlist))
 		} else {
 			action := gziphandler.GzipHandler(limit(NewHandler(fmt.Sprintf("/var/www/%s/action/index.php", domain), "tcp", "127.0.0.1:8000")))
 			mux.Handle("/action/", AccessLog(action))
