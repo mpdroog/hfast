@@ -13,6 +13,7 @@ import (
 	"github.com/unrolled/secure"
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/text/language"
+	"golang.org/x/net/netutil"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -29,6 +30,8 @@ type Overrides struct {
 	DevMode         bool // Only allow admin user+pass
 	Authlist        map[string]bool
 }
+
+const MAX_WORKERS = 50000 // max 50k go-routines per listener
 
 var (
 	pushAssets map[string][]string
@@ -213,7 +216,8 @@ func listener(addr string) (net.Listener, error) {
 	if e != nil {
 		return nil, e
 	}
-	return TCPKeepAliveListener{ln.(*net.TCPListener)}, nil
+	aln := TCPKeepAliveListener{ln.(*net.TCPListener)}
+	return netutil.LimitListener(aln, MAX_WORKERS), nil
 }
 
 func main() {
