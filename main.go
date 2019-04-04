@@ -208,6 +208,14 @@ func getOverrides(path string) (Overrides, error) {
 	return c, e
 }
 
+func listener(addr string) (net.Listener, error) {
+	ln, e := net.Listen("tcp", addr)
+	if e != nil {
+		return nil, e
+	}
+	return TCPKeepAliveListener{ln.(*net.TCPListener)}, nil
+}
+
 func main() {
 	httpListen := ""
 	flag.StringVar(&httpListen, "l", "", "HTTP iface:port (to override port 80 binding)")
@@ -339,7 +347,12 @@ func main() {
 			IdleTimeout:  15 * time.Second,
 			ErrorLog:     logger.Logger("@main.http-server: "),
 		}
-		if e := s.ListenAndServe(); e != nil && e != http.ErrServerClosed {
+		ln, e := listener(s.Addr)
+		if e != nil {
+			logger.Fatal(e)
+		}
+		defer ln.Close()
+		if e := s.Serve(ln); e != nil && e != http.ErrServerClosed {
 			logger.Fatal(e)
 		}
 	}()
@@ -352,7 +365,12 @@ func main() {
 		logger.Printf("SystemD notify NOT sent\n")
 	}
 
-	if e := s.ListenAndServeTLS("", ""); e != nil && e != http.ErrServerClosed {
+	ln, e := listener(s.Addr)
+	if e != nil {
+		logger.Fatal(e)
+	}
+	defer ln.Close()
+	if e := s.ServeTLS(ln, "", ""); e != nil && e != http.ErrServerClosed {
 		logger.Fatal(e)
 	}
 }
