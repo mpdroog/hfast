@@ -5,6 +5,23 @@ import (
 	"net/http"
 )
 
+func hfastMap(inner gofast.SessionHandler) gofast.SessionHandler {
+	return func(client gofast.Client, req *gofast.Request) (*gofast.ResponsePipe, error) {
+		r := req.Raw
+		req.Params["SERVER_NAME"] = r.Host
+		return inner(client, req)
+	}
+}
+
+func newFileEndpoint(endpointFile string) gofast.Middleware {
+	return gofast.Chain(
+		gofast.BasicParamsMap,
+		gofast.MapHeader,
+		gofast.MapEndpoint(endpointFile),
+		hfastMap,
+	)
+}
+
 // NewHandler returns a fastcgi web server implementation as an http.Handler
 // Please note that this handler doesn't handle the fastcgi application process.
 // You'd need to start it with other means.
@@ -19,7 +36,7 @@ func NewHandler(docroot, network, address string) http.Handler {
 
 	// route all requests to a single php file
 	return gofast.NewHandler(
-		gofast.NewFileEndpoint(docroot)(gofast.BasicSession),
+		newFileEndpoint(docroot)(gofast.BasicSession),
 		gofast.SimpleClientFactory(connFactory, 0),
 	)
 }
