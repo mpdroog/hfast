@@ -10,7 +10,6 @@ import (
 	"github.com/coreos/go-systemd/daemon"
 	"github.com/mpdroog/hfast/logger"
 	"github.com/mpdroog/hfast/proxy"
-	"github.com/unrolled/secure"
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/text/language"
 	"golang.org/x/net/netutil"
@@ -35,13 +34,13 @@ const MAX_WORKERS = 50000 // max 50k go-routines per listener
 
 var (
 	pushAssets map[string][]string
-	muxs       map[string]*http.ServeMux
+	muxs       map[string]http.Handler
 	langs      map[string]language.Matcher
 )
 
 func init() {
 	pushAssets = make(map[string][]string)
-	muxs = make(map[string]*http.ServeMux)
+	muxs = make(map[string]http.Handler)
 	langs = make(map[string]language.Matcher)
 }
 
@@ -300,7 +299,7 @@ func main() {
 			mux.Handle("/action/", AccessLog(action))
 			mux.Handle("/", AccessLog(fs))
 		}
-		muxs[domain] = mux
+		muxs[domain] = SecureWrapper(mux, overrides.ExcludedDomains)
 
 		a, e := getPush(fmt.Sprintf("/var/www/%s/pub/push", domain))
 		if e != nil {
@@ -317,25 +316,10 @@ func main() {
 		HostPolicy: autocert.HostWhitelist(domains...),
 	}
 
-	secureMiddleware := secure.New(secure.Options{
-		AllowedHosts:          domains,
-		HostsProxyHeaders:     []string{"X-Forwarded-Host"},
-		SSLRedirect:           false, // autocert takes care of this
-		SSLHost:               "",
-		SSLProxyHeaders:       map[string]string{"X-Forwarded-Proto": "https"},
-		STSSeconds:            315360000,
-		STSIncludeSubdomains:  false,
-		STSPreload:            true,
-		FrameDeny:             true,
-		ContentTypeNosniff:    true,
-		BrowserXssFilter:      true,
-		ContentSecurityPolicy: fmt.Sprintf("default-src 'self' %s", strings.Join(csp, " ")),
-	})
-	app := secureMiddleware.Handler(vhost())
 	s := &http.Server{
 		Addr:         ":443",
 		TLSConfig:    m.TLSConfig(),
-		Handler:      RecoverWrap(app),
+		Handler:      RecoverWrap(vhost()),
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  15 * time.Second,
