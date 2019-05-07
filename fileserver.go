@@ -14,6 +14,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"github.com/mpdroog/hfast/logger"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -25,7 +26,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"github.com/mpdroog/hfast/logger"
 )
 
 // The algorithm uses at most sniffLen bytes to make its decision.

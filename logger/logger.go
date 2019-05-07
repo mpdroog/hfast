@@ -7,9 +7,9 @@
 package logger
 
 import (
+	"fmt"
 	"log"
 	"os"
-	"fmt"
 	"runtime"
 )
 
@@ -35,7 +35,7 @@ func fnName(pos int) string {
 func Printf(msg string, args ...interface{}) {
 	L.Printf(
 		fmt.Sprintf("@%s: %s", fnName(2), msg),
-		args...
+		args...,
 	)
 }
 

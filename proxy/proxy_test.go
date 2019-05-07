@@ -1,12 +1,12 @@
 package proxy
 
 import (
-	"testing"
+	"bytes"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"bytes"
+	"testing"
 )
 
 type bufferWriter struct {

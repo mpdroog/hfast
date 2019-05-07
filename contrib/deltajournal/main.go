@@ -9,11 +9,11 @@ import (
 	"io/ioutil"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
-	"path/filepath"
 )
 
 var (
@@ -169,7 +169,6 @@ run:
 				}
 				continue
 			}
-
 
 			lastCursor = d.Cursor
 			// https://www.freedesktop.org/software/systemd/man/systemd.journal-fields.html

@@ -19,7 +19,7 @@ type Email struct {
 }
 type ServiceFilter struct {
 	Severity int
-	Filters []string
+	Filters  []string
 }
 type Config struct {
 	Email    Email

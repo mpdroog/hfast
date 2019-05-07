@@ -2,22 +2,22 @@
 package main
 
 import (
-	"net/http"
 	"fmt"
+	"net/http"
 	"strings"
 )
 
 const (
-	stsHeader            = "Strict-Transport-Security"
+	stsHeader = "Strict-Transport-Security"
 	//stsSubdomainString   = "; includeSubdomains"
-	stsPreloadString     = "; preload"
-	frameOptionsHeader   = "X-Frame-Options"
-	frameOptionsValue    = "DENY"
-	contentTypeHeader    = "X-Content-Type-Options"
-	contentTypeValue     = "nosniff"
-	xssProtectionHeader  = "X-XSS-Protection"
-	xssProtectionValue   = "1; mode=block"
-	cspHeader            = "Content-Security-Policy"
+	stsPreloadString    = "; preload"
+	frameOptionsHeader  = "X-Frame-Options"
+	frameOptionsValue   = "DENY"
+	contentTypeHeader   = "X-Content-Type-Options"
+	contentTypeValue    = "nosniff"
+	xssProtectionHeader = "X-XSS-Protection"
+	xssProtectionValue  = "1; mode=block"
+	cspHeader           = "Content-Security-Policy"
 )
 
 func sec(domains []string) map[string]string {
@@ -33,7 +33,7 @@ func sec(domains []string) map[string]string {
 }
 
 func SecureWrapper(h http.Handler, domains []string) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request)  {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		for k, v := range sec(domains) {
 			w.Header().Add(k, v)
 		}

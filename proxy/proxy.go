@@ -2,15 +2,15 @@
 package proxy
 
 import (
-	"github.com/mpdroog/hfast/logger"
 	"context"
+	"fmt"
+	"github.com/mpdroog/hfast/logger"
 	"github.com/vulcand/oxy/utils"
 	"io"
 	"net"
 	"net/http"
 	"strings"
 	"time"
-	"fmt"
 )
 
 func Proxy(to string) (http.HandlerFunc, error) {

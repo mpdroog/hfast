@@ -3,10 +3,10 @@ package main
 
 import (
 	"fmt"
+	"github.com/mpdroog/hfast/logger"
 	"io"
 	"net/http"
 	"time"
-	"github.com/mpdroog/hfast/logger"
 )
 
 var mw io.Writer

@@ -11,8 +11,8 @@ import (
 	"github.com/mpdroog/hfast/logger"
 	"github.com/mpdroog/hfast/proxy"
 	"golang.org/x/crypto/acme/autocert"
-	"golang.org/x/text/language"
 	"golang.org/x/net/netutil"
+	"golang.org/x/text/language"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -26,7 +26,7 @@ type Overrides struct {
 	ExcludedDomains []string
 	Lang            []string
 	Admin           map[string]string // Admin user+pass
-	DevMode         bool // Only allow admin user+pass
+	DevMode         bool              // Only allow admin user+pass
 	Authlist        map[string]bool
 }
 
@@ -265,7 +265,7 @@ func main() {
 				panic(e)
 			}
 			mux := &http.ServeMux{}
-			if (overrides.DevMode) {
+			if overrides.DevMode {
 				mux.Handle("/", AccessLog(BasicAuth(fn, "Backend", overrides.Admin, overrides.Authlist)))
 			} else {
 				mux.Handle("/", AccessLog(fn))
@@ -290,7 +290,7 @@ func main() {
 			admin := gziphandler.GzipHandler(limit(BasicAuth(NewHandler(fmt.Sprintf("/var/www/%s/admin/index.php", domain), "tcp", "127.0.0.1:8000"), "Backend", overrides.Admin, overrides.Authlist)))
 			mux.Handle("/admin/", AccessLog(admin))
 		}
-		if (overrides.DevMode) {
+		if overrides.DevMode {
 			action := gziphandler.GzipHandler(limit(BasicAuth(NewHandler(fmt.Sprintf("/var/www/%s/action/index.php", domain), "tcp", "127.0.0.1:8000"), "Backend", overrides.Admin, overrides.Authlist)))
 			mux.Handle("/action/", AccessLog(action))
 			mux.Handle("/", BasicAuth(AccessLog(fs), "Backend", overrides.Admin, overrides.Authlist))

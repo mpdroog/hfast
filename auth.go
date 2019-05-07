@@ -1,10 +1,10 @@
 package main
 
 import (
-	"github.com/mpdroog/hfast/logger"
 	"crypto/subtle"
-	"net/http"
+	"github.com/mpdroog/hfast/logger"
 	"net"
+	"net/http"
 )
 
 func BasicAuth(h http.Handler, realm string, userpass map[string]string, authlist map[string]bool) http.Handler {
