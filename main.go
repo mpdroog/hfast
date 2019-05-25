@@ -21,13 +21,14 @@ import (
 	"time"
 )
 
-type Overrides struct {
+type Override struct {
 	Proxy           string // Just forward to given addr
 	ExcludedDomains []string
 	Lang            []string
 	Admin           map[string]string // Admin user+pass
 	DevMode         bool              // Only allow admin user+pass
 	Authlist        map[string]bool
+	SiteType        string
 }
 
 const MAX_WORKERS = 50000 // max 50k go-routines per listener
@@ -36,12 +37,14 @@ var (
 	pushAssets map[string][]string
 	muxs       map[string]http.Handler
 	langs      map[string]language.Matcher
+	overrides  map[string]Override
 )
 
 func init() {
 	pushAssets = make(map[string][]string)
 	muxs = make(map[string]http.Handler)
 	langs = make(map[string]language.Matcher)
+	overrides = make(map[string]Override)
 }
 
 func push(h http.Handler) http.Handler {
@@ -194,8 +197,8 @@ func getPush(path string) ([]string, error) {
 	return out, nil
 }
 
-func getOverrides(path string) (Overrides, error) {
-	c := Overrides{}
+func getOverride(path string) (Override, error) {
+	c := Override{}
 
 	if _, e := os.Stat(path); os.IsNotExist(e) {
 		return c, nil
@@ -234,49 +237,54 @@ func main() {
 	}
 	defer f.Close()
 	SetLog(f)
-
-	// HACK
-	csp := []string{}
 	wwwDomains := []string{}
+	siteTypes := map[string]bool{
+		"": true,
+		"amp": true,
+		"weak": true,
+	}
 
 	for _, domain := range domains {
-		if domain == "default" {
-			// Fallback domain
-			fs := gziphandler.GzipHandler(push(FileServer(Dir(fmt.Sprintf("/var/www/%s/pub", domain)))))
-			mux := &http.ServeMux{}
-			mux.Handle("/", fs)
-			muxs[domain] = NotfoundWrapper(mux)
-			continue
-		}
-		overrides, e := getOverrides(fmt.Sprintf("/var/www/%s/override.toml", domain))
+		override, e := getOverride(fmt.Sprintf("/var/www/%s/override.toml", domain))
 		if e != nil {
 			panic(e)
 		}
-		if len(overrides.ExcludedDomains) > 0 {
-			csp = append(csp, overrides.ExcludedDomains...)
+
+		if domain == "default" {
+			// Fallback domain
+			fs := gziphandler.GzipHandler(FileServer(Dir(fmt.Sprintf("/var/www/%s/pub", domain))))
+			mux := &http.ServeMux{}
+			mux.Handle("/", fs)
+			muxs[domain] = NotfoundWrapper(SecureWrapper(mux))
+			overrides[domain] = override
+			continue
+		}
+		if !siteTypes[override.SiteType] {
+			panic(fmt.Errorf("overrides.SiteType invalid, given=%s", override.SiteType))
 		}
 		if !strings.HasPrefix(domain, "www.") {
 			wwwDomains = append(wwwDomains, "www."+domain)
 		}
 
-		if len(overrides.Proxy) > 0 {
-			fn, e := proxy.Proxy(overrides.Proxy)
+		if len(override.Proxy) > 0 {
+			fn, e := proxy.Proxy(override.Proxy)
 			if e != nil {
 				panic(e)
 			}
 			mux := &http.ServeMux{}
-			if overrides.DevMode {
-				mux.Handle("/", AccessLog(BasicAuth(fn, "Backend", overrides.Admin, overrides.Authlist)))
+			if override.DevMode {
+				mux.Handle("/", AccessLog(BasicAuth(fn, "Backend", override.Admin, override.Authlist)))
 			} else {
 				mux.Handle("/", AccessLog(fn))
 			}
-			muxs[domain] = mux
+			overrides[domain] = override
+			muxs[domain] = SecureWrapper(mux)
 			continue
 		}
 
-		if len(overrides.Lang) > 0 {
+		if len(override.Lang) > 0 {
 			var tags []language.Tag
-			for _, lang := range overrides.Lang {
+			for _, lang := range override.Lang {
 				tags = append(tags, language.MustParse(lang))
 			}
 			langs[domain] = language.NewMatcher(tags)
@@ -286,20 +294,21 @@ func main() {
 		limit := ratelimit.Request(ratelimit.IP).Rate(30, time.Minute).LimitBy(memory.New()) // 30req/min
 
 		mux := &http.ServeMux{}
-		if len(overrides.Admin) > 0 {
-			admin := gziphandler.GzipHandler(limit(BasicAuth(NewHandler(fmt.Sprintf("/var/www/%s/admin/index.php", domain), "tcp", "127.0.0.1:8000"), "Backend", overrides.Admin, overrides.Authlist)))
+		if len(override.Admin) > 0 {
+			admin := gziphandler.GzipHandler(limit(BasicAuth(NewHandler(fmt.Sprintf("/var/www/%s/admin/index.php", domain), "tcp", "127.0.0.1:8000"), "Backend", override.Admin, override.Authlist)))
 			mux.Handle("/admin/", AccessLog(admin))
 		}
-		if overrides.DevMode {
-			action := gziphandler.GzipHandler(limit(BasicAuth(NewHandler(fmt.Sprintf("/var/www/%s/action/index.php", domain), "tcp", "127.0.0.1:8000"), "Backend", overrides.Admin, overrides.Authlist)))
+		if override.DevMode {
+			action := gziphandler.GzipHandler(limit(BasicAuth(NewHandler(fmt.Sprintf("/var/www/%s/action/index.php", domain), "tcp", "127.0.0.1:8000"), "Backend", override.Admin, override.Authlist)))
 			mux.Handle("/action/", AccessLog(action))
-			mux.Handle("/", BasicAuth(AccessLog(fs), "Backend", overrides.Admin, overrides.Authlist))
+			mux.Handle("/", BasicAuth(AccessLog(fs), "Backend", override.Admin, override.Authlist))
 		} else {
 			action := gziphandler.GzipHandler(limit(NewHandler(fmt.Sprintf("/var/www/%s/action/index.php", domain), "tcp", "127.0.0.1:8000")))
 			mux.Handle("/action/", AccessLog(action))
 			mux.Handle("/", AccessLog(fs))
 		}
-		muxs[domain] = SecureWrapper(mux, overrides.ExcludedDomains)
+		overrides[domain] = override
+		muxs[domain] = SecureWrapper(mux)
 
 		a, e := getPush(fmt.Sprintf("/var/www/%s/pub/push", domain))
 		if e != nil {

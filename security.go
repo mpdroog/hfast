@@ -20,21 +20,33 @@ const (
 	cspHeader           = "Content-Security-Policy"
 )
 
-func sec(domains []string) map[string]string {
+func sec(domains []string, useCSP bool) map[string]string {
 	responseHeader := make(map[string]string)
 
 	responseHeader[stsHeader] = fmt.Sprintf("max-age=%d%s", 315360000, stsPreloadString)
 	responseHeader[frameOptionsHeader] = frameOptionsValue
 	responseHeader[contentTypeHeader] = contentTypeValue
 	responseHeader[xssProtectionHeader] = xssProtectionValue
-	responseHeader[cspHeader] = fmt.Sprintf("default-src 'self' %s", strings.Join(domains, " "))
-
+	if useCSP {
+		responseHeader[cspHeader] = fmt.Sprintf("default-src 'self' %s", strings.Join(domains, " "))
+	}
 	return responseHeader
 }
 
-func SecureWrapper(h http.Handler, domains []string) http.Handler {
+func SecureWrapper(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		for k, v := range sec(domains) {
+		override, ok := overrides[r.Host]
+		if !ok {
+			override = overrides["default"]
+			// panic(fmt.Sprintf("DevErr: Host(%s) not configured", host))
+		}
+
+		useCSP := true
+		if override.SiteType == "amp" || override.SiteType == "weak" {
+			useCSP = false
+		}
+
+		for k, v := range sec(override.ExcludedDomains, useCSP) {
 			w.Header().Add(k, v)
 		}
 		h.ServeHTTP(w, r)
@@ -43,9 +55,9 @@ func SecureWrapper(h http.Handler, domains []string) http.Handler {
 
 func NotfoundWrapper(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "" || r.URL.Path == "/" {
+		/* TODO if r.URL.Path == "" {
 			w.WriteHeader(404)
-		}
+		}*/
 		h.ServeHTTP(w, r)
 	})
 }
