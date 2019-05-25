@@ -40,3 +40,12 @@ func SecureWrapper(h http.Handler, domains []string) http.Handler {
 		h.ServeHTTP(w, r)
 	})
 }
+
+func NotfoundWrapper(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "" || r.URL.Path == "/" {
+			w.WriteHeader(404)
+		}
+		h.ServeHTTP(w, r)
+	})
+}

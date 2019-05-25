@@ -245,7 +245,7 @@ func main() {
 			fs := gziphandler.GzipHandler(push(FileServer(Dir(fmt.Sprintf("/var/www/%s/pub", domain)))))
 			mux := &http.ServeMux{}
 			mux.Handle("/", fs)
-			muxs[domain] = mux
+			muxs[domain] = NotfoundWrapper(mux)
 			continue
 		}
 		overrides, e := getOverrides(fmt.Sprintf("/var/www/%s/override.toml", domain))
