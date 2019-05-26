@@ -255,7 +255,7 @@ func main() {
 			fs := gziphandler.GzipHandler(FileServer(Dir(fmt.Sprintf("/var/www/%s/pub", domain))))
 			mux := &http.ServeMux{}
 			mux.Handle("/", fs)
-			muxs[domain] = NotfoundWrapper(SecureWrapper(mux))
+			muxs[domain] = SecureWrapper(mux)
 			overrides[domain] = override
 			continue
 		}

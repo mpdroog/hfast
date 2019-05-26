@@ -172,6 +172,10 @@ func serveContent(w http.ResponseWriter, r *http.Request, name string, modtime t
 	}
 
 	code := http.StatusOK
+	if _, ok := overrides[r.Host]; !ok && r.URL.Path == "/" {
+		// mpdroog: Default to notfound to clarify to any caller the given URL is invalid
+		code = http.StatusNotFound
+	}
 
 	// If Content-Type isn't set, use the file's extension to find it, but
 	// if the Content-Type is unset explicitly, do not sniff the type.

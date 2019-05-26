@@ -52,12 +52,3 @@ func SecureWrapper(h http.Handler) http.Handler {
 		h.ServeHTTP(w, r)
 	})
 }
-
-func NotfoundWrapper(h http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		/* TODO if r.URL.Path == "" {
-			w.WriteHeader(404)
-		}*/
-		h.ServeHTTP(w, r)
-	})
-}
