@@ -548,29 +548,7 @@ func checkPreconditions(w http.ResponseWriter, r *http.Request, modtime time.Tim
 	return false, rangeHeader
 }
 
-// name is '/'-separated, not filepath.Separator.
-func serveFile(w http.ResponseWriter, r *http.Request, fs FileSystem, name string, redirect bool) {
-	const indexPage = "/index.html"
-
-	if strings.Contains(r.URL.Path, "/.") {
-		// Don't allow dot prefixed paths (.git, .htaccess etc..)
-		http.Error(w, "Action prohibited.", http.StatusForbidden)
-		return
-	}
-
-	// redirect .../index.html to .../
-	// can't use Redirect() because that would make the path absolute,
-	// which would be a problem running under StripPrefix
-	if strings.HasSuffix(r.URL.Path, indexPage) {
-		localRedirect(w, r, "./")
-		return
-	}
-	if strings.HasSuffix(name, ".php") {
-		http.Error(w, "Action prohibited.", http.StatusForbidden)
-		return
-	}
-
-	// mpdroog: Pre-compressed gzip/brotli
+func precompressed(w http.ResponseWriter, r *http.Request, fs FileSystem, name string) string {
 	if strings.HasSuffix(name, ".html") || strings.HasSuffix(name, ".js") || strings.HasSuffix(name, ".css") {
 		useGzip := false
 		useBrotli := false
@@ -597,7 +575,33 @@ func serveFile(w http.ResponseWriter, r *http.Request, fs FileSystem, name strin
 			name = name + ".gz"
 		}
 	}
+	return name
+}
 
+// name is '/'-separated, not filepath.Separator.
+func serveFile(w http.ResponseWriter, r *http.Request, fs FileSystem, name string, redirect bool) {
+	const indexPage = "/index.html"
+
+	if strings.Contains(r.URL.Path, "/.") {
+		// mpdroog: Don't allow dot prefixed paths (.git, .htaccess etc..)
+		http.Error(w, "Action prohibited.", http.StatusForbidden)
+		return
+	}
+
+	// redirect .../index.html to .../
+	// can't use Redirect() because that would make the path absolute,
+	// which would be a problem running under StripPrefix
+	if strings.HasSuffix(r.URL.Path, indexPage) {
+		localRedirect(w, r, "./")
+		return
+	}
+	// mpdroog: Protect user against himself
+	if strings.HasSuffix(name, ".php") {
+		http.Error(w, "Action prohibited.", http.StatusForbidden)
+		return
+	}
+
+	name = precompressed(w, r, fs, name)
 	f, err := fs.Open(name)
 	if err != nil {
 		msg, code := toHTTPError(err)
@@ -642,6 +646,7 @@ func serveFile(w http.ResponseWriter, r *http.Request, fs FileSystem, name strin
 	// use contents of index.html for directory, if present
 	if d.IsDir() {
 		index := strings.TrimSuffix(name, "/") + indexPage
+		index = precompressed(w, r, fs, index)
 		ff, err := fs.Open(index)
 		if err == nil {
 			defer ff.Close()
