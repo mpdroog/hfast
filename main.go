@@ -252,7 +252,7 @@ func main() {
 
 		if domain == "default" {
 			// Fallback domain
-			fs := gziphandler.GzipHandler(FileServer(Dir(fmt.Sprintf("/var/www/%s/pub", domain))))
+			fs := FileServer(Dir(fmt.Sprintf("/var/www/%s/pub", domain)))
 			mux := &http.ServeMux{}
 			mux.Handle("/", fs)
 			muxs[domain] = SecureWrapper(mux)
@@ -290,7 +290,7 @@ func main() {
 			langs[domain] = language.NewMatcher(tags)
 		}
 
-		fs := gziphandler.GzipHandler(push(FileServer(Dir(fmt.Sprintf("/var/www/%s/pub", domain)))))
+		fs := push(FileServer(Dir(fmt.Sprintf("/var/www/%s/pub", domain))))
 		limit := ratelimit.Request(ratelimit.IP).Rate(30, time.Minute).LimitBy(memory.New()) // 30req/min
 
 		mux := &http.ServeMux{}

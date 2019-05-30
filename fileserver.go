@@ -549,6 +549,32 @@ func serveFile(w http.ResponseWriter, r *http.Request, fs FileSystem, name strin
 		return
 	}
 
+	// mpdroog: Pre-compressed gzip/brotli
+	if strings.HasSuffix(name, ".html") || strings.HasSuffix(name, ".js") || strings.HasSuffix(name, ".css") {
+		useGzip := false
+		useBrotli := false
+
+		encs := strings.SplitN(r.Header.Get("accept-encoding"), ",", 10)
+		// TODO: Lookup table to improve lookup next time?
+		for _, enc := range encs {
+			if enc == "gzip" {
+				if _, err := os.Stat(name+".gz"); !os.IsNotExist(err) {
+					useGzip = true
+				}
+			}
+			if enc == "br" {
+				if _, err := os.Stat(name+".br"); !os.IsNotExist(err) {
+					useBrotli = true
+				}
+			}
+		}
+		if useBrotli {
+			name = name + ".br"
+		} else if useGzip {
+			name = name + ".gz"
+		}
+	}
+
 	f, err := fs.Open(name)
 	if err != nil {
 		msg, code := toHTTPError(err)
