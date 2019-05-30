@@ -18,6 +18,9 @@ const (
 	xssProtectionHeader = "X-XSS-Protection"
 	xssProtectionValue  = "1; mode=block"
 	cspHeader           = "Content-Security-Policy"
+
+	featurePolicyHeader = "Feature-Policy"
+	featurePolicyValue  = "vibrate 'none'; geolocation 'none'; camera 'none'; document-domain 'none'; microphone 'none'"
 )
 
 func sec(domains []string, useCSP bool) map[string]string {
@@ -27,6 +30,7 @@ func sec(domains []string, useCSP bool) map[string]string {
 	responseHeader[frameOptionsHeader] = frameOptionsValue
 	responseHeader[contentTypeHeader] = contentTypeValue
 	responseHeader[xssProtectionHeader] = xssProtectionValue
+	responseHeader[featurePolicyHeader] = featurePolicyValue
 	if useCSP {
 		responseHeader[cspHeader] = fmt.Sprintf("default-src 'self' %s", strings.Join(domains, " "))
 	}
