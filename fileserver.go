@@ -87,11 +87,26 @@ func (d Dir) Open(name string) (File, error) {
 	return f, nil
 }
 
+func (d Dir) Exists(name string) (bool, error) {
+	if filepath.Separator != '/' && strings.ContainsRune(name, filepath.Separator) {
+		return false, errors.New("http: invalid character in file path: " + name)
+	}
+	dir := string(d)
+	if dir == "" {
+		dir = "."
+	}
+	fullName := filepath.Join(dir, filepath.FromSlash(path.Clean("/"+name)))
+	_, err := os.Stat(fullName)
+	exist := !os.IsNotExist(err)
+	return exist, err
+}
+
 // A FileSystem implements access to a collection of named files.
 // The elements in a file path are separated by slash ('/', U+002F)
 // characters, regardless of host operating system convention.
 type FileSystem interface {
 	Open(name string) (File, error)
+	Exists(name string) (bool, error)
 }
 
 // A File is returned by a FileSystem's Open method and can be
@@ -182,6 +197,12 @@ func serveContent(w http.ResponseWriter, r *http.Request, name string, modtime t
 	ctypes, haveType := w.Header()["Content-Type"]
 	var ctype string
 	if !haveType {
+		if strings.HasSuffix(name, ".gz") {
+			name = strings.Replace(name, ".gz", "", 1)
+		}
+		if strings.HasSuffix(name, ".br") {
+			name = strings.Replace(name, ".br", "", 1)
+		}
 		ctype = mime.TypeByExtension(filepath.Ext(name))
 		if ctype == "" {
 			// read a chunk to decide between utf-8 text and binary
@@ -555,22 +576,24 @@ func serveFile(w http.ResponseWriter, r *http.Request, fs FileSystem, name strin
 		useBrotli := false
 
 		encs := strings.SplitN(r.Header.Get("accept-encoding"), ",", 10)
-		// TODO: Lookup table to improve lookup next time?
 		for _, enc := range encs {
+			enc = strings.TrimSpace(strings.ToLower(enc))
 			if enc == "gzip" {
-				if _, err := os.Stat(name+".gz"); !os.IsNotExist(err) {
+				if ok, _ := fs.Exists(name+".gz"); ok {
 					useGzip = true
 				}
 			}
 			if enc == "br" {
-				if _, err := os.Stat(name+".br"); !os.IsNotExist(err) {
+				if ok, _ := fs.Exists(name+".br"); ok {
 					useBrotli = true
 				}
 			}
 		}
 		if useBrotli {
+			w.Header().Set("Content-Encoding", "br")
 			name = name + ".br"
 		} else if useGzip {
+			w.Header().Set("Content-Encoding", "gzip")
 			name = name + ".gz"
 		}
 	}
