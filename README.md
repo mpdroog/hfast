@@ -16,7 +16,7 @@ Why?
 
 How?
 - You need to place files in the pre-defined project structure
-- Think about URL-versioning CSS/img/JS-files if you want to replace them
+- Think about URL-versioning CSS/img/JS-files if you want to replace them (support file.vXXX.css|js by default where the vXXX is stripped off)
 - Content Security Policy (CSP) by default, no CSS/JS in the body of HTML
 - Proper deadlines, so 5sec to finish a script, if your script it slower fix it!
 
