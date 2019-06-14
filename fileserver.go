@@ -548,8 +548,29 @@ func checkPreconditions(w http.ResponseWriter, r *http.Request, modtime time.Tim
 	return false, rangeHeader
 }
 
+func revisioned(name string) string {
+	if !strings.Contains(name, ".v") {
+		return name
+	}
+
+	// Possible revisioned asset.vXXXXXX.css (for cache invalidation)
+	toks := strings.SplitN(name, ".", 5)
+	for idx, tok := range toks {
+		hasPrefix := strings.HasPrefix(tok, "v")
+		_, e := strconv.Atoi(tok[1:])
+		if hasPrefix && e == nil {
+			// revisioned asset, strip off vXXXX
+			name = strings.Join(append(toks[:idx], toks[idx+1:]...), ".")
+			break
+		}
+	}
+
+	return name
+}
+
 func precompressed(w http.ResponseWriter, r *http.Request, fs FileSystem, name string) string {
 	if strings.HasSuffix(name, ".html") || strings.HasSuffix(name, ".js") || strings.HasSuffix(name, ".css") {
+		name = revisioned(name)
 		useGzip := false
 		useBrotli := false
 

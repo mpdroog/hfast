@@ -157,3 +157,18 @@ func TestPHP(t *testing.T) {
 		log.Printf("Err, prohibit-msg not shows, body=" + string(body))
 	}
 }
+
+func TestRevisioned(t *testing.T) {
+	m := map[string]string{
+		"/test.js": "/test.js",
+		"/test.1001.css": "/test.1001.css",
+		"/test.v1001.css": "/test.css",
+	}
+
+	for in, out := range m {
+		got := revisioned(in)
+		if out != got {
+			log.Printf("Mismatch %s!=%s, got=%s\n", in, out, got)
+		}
+	}
+}
