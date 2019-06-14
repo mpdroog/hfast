@@ -11,6 +11,8 @@ Why?
 - Ratelimit by default on PHP
 - Proper caching/security headers everywhere
 - base64 auth protected /admin to put sensitive stuff behind.
+- Native support for pre-optimized content. Let Brotli/Zopfli pre-compress assets
+ to `.br`/`.gz` and HFast will serve them
 
 How?
 - You need to place files in the pre-defined project structure
@@ -37,6 +39,7 @@ type Overrides struct {
 	Admin           map[string]string // Admin user+pass for backend
 	DevMode         bool // Protect whole site with Authlist(IP) or Admin user+pass
 	Authlist        map[string]bool // Whitelist with IP=>true, Blacklist with IP=>false (works only with DevMode or /admin)
+	SiteType        string // "" = default (all rules on), "amp" = Google AMP site, "weak" = Site without CSP
 }
 ```
 
