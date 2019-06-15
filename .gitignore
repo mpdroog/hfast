@@ -5,3 +5,4 @@ contrib/deltajournal/deltajournal
 contrib/htest/htest
 contrib/uploadme/uploadme
 contrib/uploadme/files/
+contrib/logparser/logparser

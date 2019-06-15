@@ -28,7 +28,8 @@ type Msg struct {
 	UA string
 	Proto string
 	Len uint64
-	Time int64
+	Date string
+	Time string
 	Referer string
 }
 
@@ -76,7 +77,8 @@ func AccessLog(h http.Handler) http.Handler {
 		msg.UA = r.Header.Get("User-Agent")
 		msg.Proto = r.Proto
 		msg.Len = sw.Length
-		msg.Time = begin.Unix()
+		msg.Date = begin.Format("2006-01-02")
+		msg.Time = begin.Format("15:04:05")
 		msg.Referer = r.Referer()
 
 		if e := enc.Encode(msg); e != nil {
