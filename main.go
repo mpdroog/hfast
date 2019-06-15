@@ -255,7 +255,7 @@ func main() {
 			fs := FileServer(Dir(fmt.Sprintf("/var/www/%s/pub", domain)))
 			mux := &http.ServeMux{}
 			mux.Handle("/", fs)
-			muxs[domain] = SecureWrapper(mux)
+			muxs[domain] = SecureWrapper(AccessLog(mux))
 			overrides[domain] = override
 			continue
 		}
