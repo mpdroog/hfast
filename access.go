@@ -2,32 +2,91 @@
 package main
 
 import (
-	"fmt"
+	"encoding/json"
 	"github.com/mpdroog/hfast/logger"
 	"io"
 	"net/http"
 	"time"
 )
 
-var mw io.Writer
+var (
+	enc *json.Encoder
+)
 
 func SetLog(w io.Writer) {
-	mw = w
+	enc = json.NewEncoder(w)
+}
+
+type Msg struct {
+	Method string
+	Host string
+	URL string
+	Status int
+	Remote string
+	Ratelimit string
+	Duration int64
+	UA string
+	Proto string
+	Len uint64
+	Time int64
+	Referer string
+}
+
+type statusWriter struct {
+    http.ResponseWriter
+    Status int
+    Length uint64
+}
+
+func (w *statusWriter) Header() http.Header {
+	return w.ResponseWriter.Header()
+}
+
+
+func (w *statusWriter) WriteHeader(status int) {
+    w.Status = status
+    w.ResponseWriter.WriteHeader(status)
+}
+
+func (w *statusWriter) Write(b []byte) (int, error) {
+    if w.Status == 0 {
+		w.Status = 200
+    }
+    n, err := w.ResponseWriter.Write(b)
+    w.Length += uint64(n)
+    return n, err
 }
 
 func AccessLog(h http.Handler) http.Handler {
-	// TODO:
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		begin := time.Now()
-		h.ServeHTTP(w, r)
+		sw := &statusWriter{ResponseWriter: w}
+		h.ServeHTTP(sw, r)
 
+		// TODO: Re-use objects?
 		diff := time.Since(begin)
-		msg := fmt.Sprintf("%s %s%s remote=%s ratelimit.remain=%s dur=%dns\n", r.Method, r.Host, r.URL, r.RemoteAddr, w.Header().Get("X-Ratelimit-Remaining"), diff.Nanoseconds())
+		msg := Msg{}
+		msg.Method = r.Method
+		msg.Host = r.Host
+		msg.URL = r.URL.String()
+		msg.Status = sw.Status
+		msg.Remote = r.RemoteAddr
+		msg.Ratelimit = w.Header().Get("X-Ratelimit-Remaining")
+		msg.Duration = int64(diff.Seconds())
+		msg.UA = r.Header.Get("User-Agent")
+		msg.Proto = r.Proto
+		msg.Len = sw.Length
+		msg.Time = begin.Unix()
+		msg.Referer = r.Referer()
 
-		if int(diff.Seconds()) > 5 {
-			logger.Printf("perf-warning(taking longer than 5sec): " + msg)
+		if e := enc.Encode(msg); e != nil {
+			logger.Printf("accesslog: " + e.Error())			
 		}
-
-		mw.Write([]byte(msg))
+		if int(diff.Seconds()) > 5 {
+			logger.Printf("perf_slow: " + msg.Method + " " + msg.Host + " " + msg.URL)
+		}
+		if sw.Length > 1024*1024*100 {
+			logger.Printf("perf_big: " + msg.Method + " " + msg.Host + " " + msg.URL)
+		}
 	})
 }
