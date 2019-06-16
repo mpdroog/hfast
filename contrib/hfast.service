@@ -6,10 +6,8 @@ Requires=network.target
 [Service]
 LimitNOFILE=8192
 Type=notify
-
-Restart=always
-RestartSec=30
-TimeoutStartSec=0
+WatchdogSec=30s
+Restart=on-failure
 
 WorkingDirectory=/var/www
 ExecStart=/usr/sbin/hfast

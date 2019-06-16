@@ -111,7 +111,9 @@ func (rh *redirectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, ok := muxs[host]; !ok {
-		logger.Printf("Unmatched host: %s", host)
+		if host != "127.0.0.1" {
+			logger.Printf("Unmatched host: %s", host)
+		}
 
 		if mux, ok := muxs["default"]; ok {
 			mux.ServeHTTP(w, r)
@@ -371,6 +373,37 @@ func main() {
 			panic(e)
 		}
 		wg.Done()
+	}()
+
+	// watchdog
+	go func() {
+	    interval, e := daemon.SdWatchdogEnabled(false)
+	    if e != nil || interval == 0 {
+	        panic(e)
+	    }
+
+		tr := &http.Transport{
+			MaxIdleConns:       1,
+			IdleConnTimeout:    time.Second,
+		}
+		client := &http.Client{Transport: tr}
+	    for {
+	    	addr := listeners[1].Addr().String()
+	    	port := addr[strings.LastIndex(addr, ":"):]
+	    	req, e := http.NewRequest("GET", "http://127.0.0.1" + port, nil)
+			if e != nil {
+				fmt.Printf("KeepAlive.err: %s\n", e.Error())
+				continue
+			}
+
+			if _, e := client.Do(req); e != nil {
+				fmt.Printf("KeepAlive.err: %s\n", e.Error())
+				continue
+			} else {
+				daemon.SdNotify(false, "WATCHDOG=1")
+			}
+	        time.Sleep(interval / 3)
+	    }
 	}()
 
 	// Graceful shutdown
