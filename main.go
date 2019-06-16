@@ -7,11 +7,11 @@ import (
 	"github.com/NYTimes/gziphandler"
 	"github.com/VojtechVitek/ratelimit"
 	"github.com/VojtechVitek/ratelimit/memory"
+	"github.com/coreos/go-systemd/activation"
 	"github.com/coreos/go-systemd/daemon"
 	"github.com/mpdroog/hfast/logger"
 	"github.com/mpdroog/hfast/proxy"
 	"golang.org/x/crypto/acme/autocert"
-	"golang.org/x/net/netutil"
 	"golang.org/x/text/language"
 	"io/ioutil"
 	"net"
@@ -19,6 +19,10 @@ import (
 	"os"
 	"strings"
 	"time"
+	"sync"
+	"syscall"
+	"context"
+	"os/signal"
 )
 
 type Override struct {
@@ -213,19 +217,19 @@ func getOverride(path string) (Override, error) {
 	return c, e
 }
 
-func listener(addr string) (net.Listener, error) {
-	ln, e := net.Listen("tcp", addr)
-	if e != nil {
-		return nil, e
-	}
-	aln := TCPKeepAliveListener{ln.(*net.TCPListener)}
-	return netutil.LimitListener(aln, MAX_WORKERS), nil
-}
-
 func main() {
-	httpListen := ""
-	flag.StringVar(&httpListen, "l", "", "HTTP iface:port (to override port 80 binding)")
+	// httpListen := ""
+	//flag.StringVar(&httpListen, "l", "", "HTTP iface:port (to override port 80 binding)")
 	flag.Parse()
+
+	listeners, e := activation.Listeners()
+    if e != nil {
+        panic(e)
+    }
+	if len(listeners) != 2 {
+        panic(fmt.Errorf("fd.socket activation (%d != 2)\n", len(listeners)))
+    }
+
 	domains, e := getDomains()
 	if e != nil {
 		panic(e)
@@ -324,34 +328,69 @@ func main() {
 		Prompt:     autocert.AcceptTOS,
 		HostPolicy: autocert.HostWhitelist(domains...),
 	}
+	wg := new(sync.WaitGroup)
+	var (
+		httpServer *http.Server
+		httpsServer *http.Server
+	)
 
-	s := &http.Server{
-		Addr:         ":443",
-		TLSConfig:    m.TLSConfig(),
-		Handler:      RecoverWrap(vhost()),
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 10 * time.Second,
-		IdleTimeout:  15 * time.Second,
-		ErrorLog:     logger.Logger("@main.https-server: "),
-	}
-
+	// :80
+	wg.Add(1)
 	go func() {
 		s := &http.Server{
-			Addr:         httpListen,
 			Handler:      RecoverWrap(m.HTTPHandler(&redirectHandler{})),
 			ReadTimeout:  5 * time.Second,
 			WriteTimeout: 10 * time.Second,
 			IdleTimeout:  15 * time.Second,
 			ErrorLog:     logger.Logger("@main.http-server: "),
 		}
-		ln, e := listener(s.Addr)
-		if e != nil {
-			logger.Fatal(e)
-		}
+		httpServer = s
+		ln := listeners[1]
 		defer ln.Close()
 		if e := s.Serve(ln); e != nil && e != http.ErrServerClosed {
 			logger.Fatal(e)
 		}
+		wg.Done()
+	}()
+
+	// :443
+	wg.Add(1)
+	go func () {
+		s := &http.Server{
+			TLSConfig:    m.TLSConfig(),
+			Handler:      RecoverWrap(vhost()),
+			ReadTimeout:  5 * time.Second,
+			WriteTimeout: 10 * time.Second,
+			IdleTimeout:  15 * time.Second,
+			ErrorLog:     logger.Logger("@main.https-server: "),
+		}
+		httpsServer = s
+		ln := listeners[0]
+		defer ln.Close()
+		if e := s.ServeTLS(ln, "", ""); e != nil && e != http.ErrServerClosed {
+			panic(e)
+		}
+		wg.Done()
+	}()
+
+	// Graceful shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+	    <-quit
+	    fmt.Println("server.shutdown")
+	    ctx, cancel := context.WithTimeout(context.Background(),
+	        6*time.Second)
+	    defer cancel()
+
+		httpServer.SetKeepAlivesEnabled(false)
+		httpsServer.SetKeepAlivesEnabled(false)
+	    if e := httpServer.Shutdown(ctx); e != nil {
+	        panic(e)
+	    }
+	    if e := httpsServer.Shutdown(ctx); e != nil {
+	        panic(e)
+	    }
 	}()
 
 	sent, e := daemon.SdNotify(false, "READY=1")
@@ -362,12 +401,5 @@ func main() {
 		logger.Printf("SystemD notify NOT sent\n")
 	}
 
-	ln, e := listener(s.Addr)
-	if e != nil {
-		logger.Fatal(e)
-	}
-	defer ln.Close()
-	if e := s.ServeTLS(ln, "", ""); e != nil && e != http.ErrServerClosed {
-		logger.Fatal(e)
-	}
+	wg.Wait()
 }

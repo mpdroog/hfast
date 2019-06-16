@@ -25,9 +25,12 @@ Systemd?
 Supported, see contrib dir for an example config to use.
 ```
 vi /etc/systemd/system/hfast.service
+vi /etc/systemd/system/hfast.socket
 chmod 644 /etc/systemd/system/hfast.service
 systemctl daemon-reload
 systemctl enable hfast
+systemctl enable hfast.socket
+systemctl start hfast.socket
 systemctl start hfast
 ```
 
