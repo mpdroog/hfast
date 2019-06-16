@@ -295,11 +295,11 @@ func main() {
 
 		mux := &http.ServeMux{}
 		if len(override.Admin) > 0 {
-			admin := gziphandler.GzipHandler(limit(BasicAuth(NewHandler(fmt.Sprintf("/var/www/%s/admin/index.php", domain), "tcp", "127.0.0.1:8000"), "Backend", override.Admin, override.Authlist)))
-			mux.Handle("/admin/", AccessLog(admin))
+			admin := gziphandler.GzipHandler(limit(NewHandler(fmt.Sprintf("/var/www/%s/admin/index.php", domain), "tcp", "127.0.0.1:8000")))
+			mux.Handle("/admin/", BasicAuth(AccessLog(admin), "Backend", override.Admin, override.Authlist))
 		}
 		if override.DevMode {
-			action := gziphandler.GzipHandler(limit(BasicAuth(NewHandler(fmt.Sprintf("/var/www/%s/action/index.php", domain), "tcp", "127.0.0.1:8000"), "Backend", override.Admin, override.Authlist)))
+			action := gziphandler.GzipHandler(limit(NewHandler(fmt.Sprintf("/var/www/%s/action/index.php", domain), "tcp", "127.0.0.1:8000")))
 			mux.Handle("/action/", AccessLog(action))
 			mux.Handle("/", BasicAuth(AccessLog(fs), "Backend", override.Admin, override.Authlist))
 		} else {
