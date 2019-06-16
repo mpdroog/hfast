@@ -13,6 +13,7 @@ Why?
 - base64 auth protected /admin to put sensitive stuff behind.
 - Native support for pre-optimized content. Let Brotli/Zopfli pre-compress assets
  to `.br`/`.gz` and HFast will serve them
+- Accesslog as JSON for easy parsing
 
 How?
 - You need to place files in the pre-defined project structure
@@ -42,6 +43,26 @@ type Overrides struct {
 	SiteType        string // "" = default (all rules on), "amp" = Google AMP site, "weak" = Site without CSP
 }
 ```
+
+/var/log/hfast.access.log
+```
+type Msg struct {
+	Method string
+	Host string
+	URL string
+	Status int
+	Remote string
+	Ratelimit string
+	Duration int64
+	UA string
+	Proto string
+	Len uint64
+	Date string
+	Time string
+	Referer string
+}
+```
+FYI. Example that reads the logs findable in `contrib/logparser`.
 
 Future plan(s)
 - Write small co-worker to offer distributed (DNS)
