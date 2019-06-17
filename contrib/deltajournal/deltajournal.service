@@ -5,10 +5,12 @@ Requires=network.target
 
 [Service]
 Type=notify
-
-Restart=always
-RestartSec=30
-TimeoutStartSec=0
+Restart=on-failure
+# 1/4th CPU shares
+CPUShares=256
+MemoryLimit=100M
+# 1/8th IO
+BlockIOWeight=128
 
 WorkingDirectory=/home/dj
 ExecStart=/home/dj/deltajournal -c=/home/dj/config.toml
