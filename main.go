@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"github.com/BurntSushi/toml"
@@ -17,12 +18,11 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
-	"time"
 	"sync"
 	"syscall"
-	"context"
-	"os/signal"
+	"time"
 )
 
 type Override struct {
@@ -228,12 +228,12 @@ func main() {
 	flag.Parse()
 
 	listeners, e := activation.Listeners()
-    if e != nil {
-        panic(e)
-    }
+	if e != nil {
+		panic(e)
+	}
 	if len(listeners) != 2 {
-        panic(fmt.Errorf("fd.socket activation (%d != 2)\n", len(listeners)))
-    }
+		panic(fmt.Errorf("fd.socket activation (%d != 2)\n", len(listeners)))
+	}
 
 	domains, e := getDomains()
 	if e != nil {
@@ -248,8 +248,8 @@ func main() {
 	SetLog(f)
 	wwwDomains := []string{}
 	siteTypes := map[string]bool{
-		"": true,
-		"amp": true,
+		"":     true,
+		"amp":  true,
 		"weak": true,
 	}
 
@@ -335,7 +335,7 @@ func main() {
 	}
 	wg := new(sync.WaitGroup)
 	var (
-		httpServer *http.Server
+		httpServer  *http.Server
 		httpsServer *http.Server
 	)
 
@@ -360,7 +360,7 @@ func main() {
 
 	// :443
 	wg.Add(1)
-	go func () {
+	go func() {
 		s := &http.Server{
 			TLSConfig:    m.TLSConfig(),
 			Handler:      RecoverWrap(vhost()),
@@ -383,61 +383,61 @@ func main() {
 
 	// watchdog
 	go func() {
-	    interval, e := daemon.SdWatchdogEnabled(false)
-	    if e != nil || interval == 0 {
-	        panic(e)
-	    }
-	    ticker := time.NewTicker(interval / 3)
+		interval, e := daemon.SdWatchdogEnabled(false)
+		if e != nil || interval == 0 {
+			panic(e)
+		}
+		ticker := time.NewTicker(interval / 3)
 
 		tr := &http.Transport{
-			MaxIdleConns:       5,
-			IdleConnTimeout:    10*time.Second,
+			MaxIdleConns:    5,
+			IdleConnTimeout: 10 * time.Second,
 		}
 		client := &http.Client{Transport: tr}
 		addr := listeners[1].Addr().String()
-    	port := addr[strings.LastIndex(addr, ":"):]
-    	if Verbose {
-    		fmt.Printf("ticker interval=%d addr=%s\n", interval / 3, "http://127.0.0.1" + port)
-    	}
+		port := addr[strings.LastIndex(addr, ":"):]
+		if Verbose {
+			fmt.Printf("ticker interval=%d addr=%s\n", interval/3, "http://127.0.0.1"+port)
+		}
 
-	    for {
-	    	select {
-	    	case <-quit:
-	    		break
-	    	case <-ticker.C:
-		    	req, e := http.NewRequest("GET", "http://127.0.0.1" + port, nil)
+		for {
+			select {
+			case <-quit:
+				break
+			case <-ticker.C:
+				req, e := http.NewRequest("GET", "http://127.0.0.1"+port, nil)
 				if e != nil {
 					fmt.Printf("KeepAlive.err: %s\n", e.Error())
 				}
 				if _, e := client.Do(req); e != nil {
 					fmt.Printf("KeepAlive.err: %s\n", e.Error())
 				} else {
-				    if Verbose {
-				    	fmt.Printf("watchdog.notify\n")
-				    }
+					if Verbose {
+						fmt.Printf("watchdog.notify\n")
+					}
 					daemon.SdNotify(false, "WATCHDOG=1")
 				}
-	    	}	    	
-	    }
+			}
+		}
 	}()
 
 	// Graceful shutdown
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
-	    <-quit
-	    fmt.Println("server.shutdown")
-	    ctx, cancel := context.WithTimeout(context.Background(),
-	        6*time.Second)
-	    defer cancel()
+		<-quit
+		fmt.Println("server.shutdown")
+		ctx, cancel := context.WithTimeout(context.Background(),
+			6*time.Second)
+		defer cancel()
 
 		httpServer.SetKeepAlivesEnabled(false)
 		httpsServer.SetKeepAlivesEnabled(false)
-	    if e := httpServer.Shutdown(ctx); e != nil {
-	        panic(e)
-	    }
-	    if e := httpsServer.Shutdown(ctx); e != nil {
-	        panic(e)
-	    }
+		if e := httpServer.Shutdown(ctx); e != nil {
+			panic(e)
+		}
+		if e := httpsServer.Shutdown(ctx); e != nil {
+			panic(e)
+		}
 	}()
 
 	sent, e := daemon.SdNotify(false, "READY=1")

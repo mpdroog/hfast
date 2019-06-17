@@ -18,44 +18,43 @@ func SetLog(w io.Writer) {
 }
 
 type Msg struct {
-	Method string
-	Host string
-	URL string
-	Status int
-	Remote string
+	Method    string
+	Host      string
+	URL       string
+	Status    int
+	Remote    string
 	Ratelimit string
-	Duration int64
-	UA string
-	Proto string
-	Len uint64
-	Date string
-	Time string
-	Referer string
+	Duration  int64
+	UA        string
+	Proto     string
+	Len       uint64
+	Date      string
+	Time      string
+	Referer   string
 }
 
 type statusWriter struct {
-    http.ResponseWriter
-    Status int
-    Length uint64
+	http.ResponseWriter
+	Status int
+	Length uint64
 }
 
 func (w *statusWriter) Header() http.Header {
 	return w.ResponseWriter.Header()
 }
 
-
 func (w *statusWriter) WriteHeader(status int) {
-    w.Status = status
-    w.ResponseWriter.WriteHeader(status)
+	w.Status = status
+	w.ResponseWriter.WriteHeader(status)
 }
 
 func (w *statusWriter) Write(b []byte) (int, error) {
-    if w.Status == 0 {
+	if w.Status == 0 {
 		w.Status = 200
-    }
-    n, err := w.ResponseWriter.Write(b)
-    w.Length += uint64(n)
-    return n, err
+	}
+	n, err := w.ResponseWriter.Write(b)
+	w.Length += uint64(n)
+	return n, err
 }
 
 func AccessLog(h http.Handler) http.Handler {
@@ -82,7 +81,7 @@ func AccessLog(h http.Handler) http.Handler {
 		msg.Referer = r.Referer()
 
 		if e := enc.Encode(msg); e != nil {
-			logger.Printf("accesslog: " + e.Error())			
+			logger.Printf("accesslog: " + e.Error())
 		}
 		if int(diff.Seconds()) > 5 {
 			logger.Printf("perf_slow: " + msg.Method + " " + msg.Host + " " + msg.URL)

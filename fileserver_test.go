@@ -160,8 +160,8 @@ func TestPHP(t *testing.T) {
 
 func TestRevisioned(t *testing.T) {
 	m := map[string]string{
-		"/test.js": "/test.js",
-		"/test.1001.css": "/test.1001.css",
+		"/test.js":        "/test.js",
+		"/test.1001.css":  "/test.1001.css",
 		"/test.v1001.css": "/test.css",
 	}
 

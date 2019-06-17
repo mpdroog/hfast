@@ -578,12 +578,12 @@ func precompressed(w http.ResponseWriter, r *http.Request, fs FileSystem, name s
 		for _, enc := range encs {
 			enc = strings.TrimSpace(strings.ToLower(enc))
 			if enc == "gzip" {
-				if ok, _ := fs.Exists(name+".gz"); ok {
+				if ok, _ := fs.Exists(name + ".gz"); ok {
 					useGzip = true
 				}
 			}
 			if enc == "br" {
-				if ok, _ := fs.Exists(name+".br"); ok {
+				if ok, _ := fs.Exists(name + ".br"); ok {
 					useBrotli = true
 				}
 			}
