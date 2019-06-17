@@ -70,10 +70,8 @@ func main() {
 	}
 
 	// Seek last position
-	if cursor != "" {
-		if e := j.SeekCursor(cursor); e != nil {
-			panic(e)
-		}
+	if e := j.SeekTail(); e != nil {
+		panic(e)
 	}
 
 	sigOS = make(chan os.Signal, 1)
@@ -94,7 +92,8 @@ func main() {
 	// -------------------
 run:
 	for {
-		txt := ""
+		var buf []string
+		buflen := 0
 
 		// Keep reading till end of log
 		lastCursor := ""
@@ -105,9 +104,9 @@ run:
 			if stop() {
 				break run
 			}
-			r, e := j.Next()
+			r, e := j.Previous()
 			if e != nil {
-				fmt.Printf("WARN: Journal.Next e=%s\n", e.Error())
+				fmt.Printf("WARN: Journal.Previous e=%s\n", e.Error())
 				break
 			}
 			if r == 0 {
@@ -116,12 +115,19 @@ run:
 				}
 				break
 			}
-
 			d, e := j.GetEntry()
 			if e != nil {
 				fmt.Printf("WARN: Journal.GetEntry e=%s\n", e.Error())
 				break
 			}
+			if d.Cursor == cursor {
+				// Done, we're at the position of last time
+				if verbose {
+					fmt.Printf("Reached cursor(%s) of last time.\n", cursor)
+				}
+				break
+			}
+			lastCursor = d.Cursor
 			severity := 5
 			filters := []string{}
 
@@ -139,6 +145,7 @@ run:
 			prio, e := strconv.Atoi(d.Fields["PRIORITY"])
 			if e != nil {
 				fmt.Printf("WARN: strconv.Atoi(%s) e=%s\n", d.Fields["PRIORITY"], e.Error())
+				prio = severity
 			}
 
 			if prio < severity {
@@ -170,13 +177,19 @@ run:
 				continue
 			}
 
-			lastCursor = d.Cursor
 			// https://www.freedesktop.org/software/systemd/man/systemd.journal-fields.html
-			txt += fmt.Sprintf("[%s!%d] %s\n", unit, prio, msg)
+			line := fmt.Sprintf("[%s!%d] %s", unit, prio, msg)
+			buf = append([]string{line}, buf...)
+			buflen += len(line)
+			if buflen > 1024*1024 {
+				// Exceed 1MB, just stop!
+				break
+			}
 		}
-		if txt != "" {
+
+		if len(buf) > 0 {
 			// We got something, MAIL IT
-			if e := Email(config.C.Email, txt); e != nil {
+			if e := Email(config.C.Email, strings.Join(buf, "\n")); e != nil {
 				fmt.Printf("WARN: Email e=%s\n" + e.Error())
 			} else {
 				// Only move to new cursor if up until last cursor was mailed
