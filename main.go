@@ -42,6 +42,8 @@ var (
 	muxs       map[string]http.Handler
 	langs      map[string]language.Matcher
 	overrides  map[string]Override
+
+	Verbose bool
 )
 
 func init() {
@@ -111,7 +113,7 @@ func (rh *redirectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, ok := muxs[host]; !ok {
-		if host != "127.0.0.1" {
+		if !strings.HasPrefix(host, "127.0.0.1") {
 			logger.Printf("Unmatched host: %s", host)
 		}
 
@@ -142,7 +144,7 @@ func vhost() http.HandlerFunc {
 			return
 		}
 		m, ok := muxs[r.Host]
-		if !ok || r.Host == "default" {
+		if !ok {
 			logger.Printf("Unmatched host: %s", r.Host)
 			w.Write([]byte("ERR: No such site."))
 			return
@@ -222,6 +224,7 @@ func getOverride(path string) (Override, error) {
 func main() {
 	// httpListen := ""
 	//flag.StringVar(&httpListen, "l", "", "HTTP iface:port (to override port 80 binding)")
+	flag.BoolVar(&Verbose, "v", false, "Verbose-mode (log more)")
 	flag.Parse()
 
 	listeners, e := activation.Listeners()
@@ -375,39 +378,50 @@ func main() {
 		wg.Done()
 	}()
 
+	// Below routines that quit with our custom channel
+	quit := make(chan os.Signal, 1)
+
 	// watchdog
 	go func() {
 	    interval, e := daemon.SdWatchdogEnabled(false)
 	    if e != nil || interval == 0 {
 	        panic(e)
 	    }
+	    ticker := time.NewTicker(interval / 3)
 
 		tr := &http.Transport{
-			MaxIdleConns:       1,
-			IdleConnTimeout:    time.Second,
+			MaxIdleConns:       5,
+			IdleConnTimeout:    10*time.Second,
 		}
 		client := &http.Client{Transport: tr}
-	    for {
-	    	addr := listeners[1].Addr().String()
-	    	port := addr[strings.LastIndex(addr, ":"):]
-	    	req, e := http.NewRequest("GET", "http://127.0.0.1" + port, nil)
-			if e != nil {
-				fmt.Printf("KeepAlive.err: %s\n", e.Error())
-				continue
-			}
+		addr := listeners[1].Addr().String()
+    	port := addr[strings.LastIndex(addr, ":"):]
+    	if Verbose {
+    		fmt.Printf("ticker interval=%d addr=%s\n", interval / 3, "http://127.0.0.1" + port)
+    	}
 
-			if _, e := client.Do(req); e != nil {
-				fmt.Printf("KeepAlive.err: %s\n", e.Error())
-				continue
-			} else {
-				daemon.SdNotify(false, "WATCHDOG=1")
-			}
-	        time.Sleep(interval / 3)
+	    for {
+	    	select {
+	    	case <-quit:
+	    		break
+	    	case <-ticker.C:
+		    	req, e := http.NewRequest("GET", "http://127.0.0.1" + port, nil)
+				if e != nil {
+					fmt.Printf("KeepAlive.err: %s\n", e.Error())
+				}
+				if _, e := client.Do(req); e != nil {
+					fmt.Printf("KeepAlive.err: %s\n", e.Error())
+				} else {
+				    if Verbose {
+				    	fmt.Printf("watchdog.notify\n")
+				    }
+					daemon.SdNotify(false, "WATCHDOG=1")
+				}
+	    	}	    	
 	    }
 	}()
 
 	// Graceful shutdown
-	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 	    <-quit
