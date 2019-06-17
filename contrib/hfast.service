@@ -1,7 +1,7 @@
 [Unit]
 Description=HTTPd Fast
-After=network.target
 Requires=network.target
+After=multi-user.target
 
 [Service]
 LimitNOFILE=8192
@@ -9,8 +9,7 @@ Type=notify
 WatchdogSec=30s
 Restart=on-failure
 
-WorkingDirectory=/var/www
-ExecStart=/usr/sbin/hfast
+ExecStart=/var/www/hfast
 User=www-data
 Group=www-data
 
@@ -18,11 +17,16 @@ Group=www-data
 CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 NoNewPrivileges=true
-#PrivateTmp=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+# Rigid filesystem protection
 ProtectSystem=full
 ProtectHome=true
-ReadOnlyDirectories=/var/www
 PrivateDevices=true
+ReadOnlyDirectories=/var/www
+
+# CGroup ruling
+MemoryLimit=512M
 
 [Install]
 WantedBy=multi-user.target
