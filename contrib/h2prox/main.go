@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"time"
+	"sync"
 )
 
 type Proxy struct {
@@ -68,12 +69,22 @@ func main() {
 
 	vm := &http.ServeMux{}
 	vm.Handle("/", vhost(muxs))
+
 	s := &http.Server{
 		Addr:         ":80",
 		Handler:      vm,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
+
+	wg := new(sync.WaitGroup)
+	wg.Add(1)
+	go func() {
+		if e := s.ListenAndServe(); e != nil && e != http.ErrServerClosed {
+			panic(e)
+		}
+		wg.Done()
+	}()
 
 	sent, e := daemon.SdNotify(false, "READY=1")
 	if e != nil {
@@ -82,6 +93,5 @@ func main() {
 	if !sent {
 		fmt.Printf("SystemD notify NOT sent\n")
 	}
-
-	panic(s.ListenAndServe())
+	wg.Wait()
 }
