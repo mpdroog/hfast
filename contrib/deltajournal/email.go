@@ -29,7 +29,7 @@ func Email(e config.Email, body string) error {
 	msg.SetHeader("X-Priority", "3")
 	msg.SetHeader("From", e.Display+" <"+e.From+">")
 	msg.SetHeader("To", e.To...)
-	msg.SetHeader("Subject", e.Subject)
+	msg.SetHeader("Subject", fmt.Sprintf("[%s] %s", host, e.Subject))
 	msg.SetBody("text/plain", body)
 
 	mailer := gomail.NewMailer(e.Host, e.User, e.Pass, e.Port)
