@@ -39,11 +39,16 @@ type Output struct {
 }
 
 func FormatMsg(m Msg) Msg {
-	if strings.HasPrefix(m.Referer, "https://www.paypal.com/webapps/hermes") {
-		m.Referer = "https://www.paypal.com/webapps/hermes"
+	pfxs := []string {
+		"https://www.paypal.com/webapps/hermes",
+		"https://betalen.rabobank.nl/ideal-betaling/",
+		"https://www.mollie.com/paymentscreen",
+		"https://ideal.ing.nl/ideal",
 	}
-	if strings.HasPrefix(m.Referer, "https://betalen.rabobank.nl/ideal-betaling/") {
-		m.Referer = "https://betalen.rabobank.nl/ideal-betaling/"
+	for _, pfx := range pfxs {
+		if strings.HasPrefix(m.Referer, pfx) {
+			m.Referer = pfx
+		}		
 	}
 	if strings.HasPrefix(m.Referer, "https://usenet.today") {
 		m.Referer = ""
