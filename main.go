@@ -409,9 +409,11 @@ func main() {
 				if e != nil {
 					fmt.Printf("KeepAlive.err: %s\n", e.Error())
 				}
-				if _, e := client.Do(req); e != nil {
+				res, e := client.Do(req)
+				if e != nil {
 					fmt.Printf("KeepAlive.err: %s\n", e.Error())
 				} else {
+					res.Body.Close()
 					if Verbose {
 						fmt.Printf("watchdog.notify\n")
 					}
