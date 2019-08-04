@@ -221,6 +221,20 @@ func getOverride(path string) (Override, error) {
 	return c, e
 }
 
+func CORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set("Access-Control-Allow-Methods", "GET,HEAD,OPTIONS,POST,PUT")
+		w.Header().Set("Access-Control-Allow-Headers", "Access-Control-Allow-Headers, Origin,Accept, X-Requested-With, Content-Type, Access-Control-Request-Method, Access-Control-Request-Headers")
+		if r.Method == "OPTIONS" {
+			w.Write([]byte("CORS :)"))
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func main() {
 	// httpListen := ""
 	//flag.StringVar(&httpListen, "l", "", "HTTP iface:port (to override port 80 binding)")
@@ -318,6 +332,9 @@ func main() {
 		}
 		overrides[domain] = override
 		muxs[domain] = SecureWrapper(mux)
+		if override.SiteType == "amp" {
+			muxs[domain] = CORS(muxs[domain])
+		}
 
 		a, e := getPush(fmt.Sprintf("/var/www/%s/pub/push", domain))
 		if e != nil {
