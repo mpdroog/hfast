@@ -33,8 +33,15 @@ func Proxy(to string) (http.HandlerFunc, error) {
 
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		defer req.Body.Close()
+		ip, _, e := net.SplitHostPort(r.RemoteAddr)
+		if e != nil {
+			logger.Printf("net.SplitHostPort(%s) %s\n", r.RemoteAddr, e.Error())
+			PrettyError(w)
+			return
+		}
 
 		req.Header.Set("X-HFast", "0.1.0")
+		req.Header.Set("X-Forwarded-For", ip)
 		dest := to + req.URL.String()
 		proxReq, e := http.NewRequest(req.Method, dest, req.Body)
 		if e != nil {
