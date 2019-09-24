@@ -33,9 +33,9 @@ func Proxy(to string) (http.HandlerFunc, error) {
 
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		defer req.Body.Close()
-		ip, _, e := net.SplitHostPort(r.RemoteAddr)
+		ip, _, e := net.SplitHostPort(req.RemoteAddr)
 		if e != nil {
-			logger.Printf("net.SplitHostPort(%s) %s\n", r.RemoteAddr, e.Error())
+			logger.Printf("net.SplitHostPort(%s) %s\n", req.RemoteAddr, e.Error())
 			PrettyError(w)
 			return
 		}
