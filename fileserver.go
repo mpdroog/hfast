@@ -192,6 +192,11 @@ func serveContent(w http.ResponseWriter, r *http.Request, name string, modtime t
 		code = http.StatusNotFound
 	}
 
+	if strings.HasSuffix(r.URL.Path, ".html") || r.URL.Path == "/" {
+		// Force browser to check for HTML change
+		w.Header().Set("Cache-Control", "no-cache,no-store,must-revalidate")
+	}
+
 	// If Content-Type isn't set, use the file's extension to find it, but
 	// if the Content-Type is unset explicitly, do not sniff the type.
 	ctypes, haveType := w.Header()["Content-Type"]
