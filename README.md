@@ -2,6 +2,9 @@ HFast
 -------------
 HTTPS-Server with convention over config, favoring security over convenience.
 
+License: Closed-source
+Licensed to: David Tie - MoneyFactory
+
 Why?
 - Few to no configuration
  So bye bye to those hours wasting on setting
