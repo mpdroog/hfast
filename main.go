@@ -295,6 +295,7 @@ func main() {
 		"":     true,
 		"amp":  true,
 		"weak": true,
+		"indexphp": true,
 	}
 
 	for _, domain := range domains {
@@ -357,7 +358,11 @@ func main() {
 			mux.Handle("/", BasicAuth(AccessLog(fs), "Backend", override.Admin, override.Authlist))
 		} else {
 			action := gziphandler.GzipHandler(limit(NewHandler(fmt.Sprintf(Webdir+"/%s/action/index.php", domain), "tcp", "127.0.0.1:8000")))
-			mux.Handle("/action/", AccessLog(action))
+                        path := "/action/"
+                        if override.SiteType == "indexphp" {
+				path = "/index.php";
+                        }
+			mux.Handle(path, AccessLog(action))
 			mux.Handle("/", AccessLog(fs))
 		}
 		overrides[domain] = override
