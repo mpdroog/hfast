@@ -351,16 +351,17 @@ func main() {
 			admin := gziphandler.GzipHandler(NewHandler(fmt.Sprintf(Webdir+"/%s/admin/index.php", domain), "tcp", "127.0.0.1:8000"))
 			mux.Handle("/admin/", BasicAuth(AccessLog(admin), "Backend", override.Admin, override.Authlist))
 		}
+
+		path := "/action/"
+		if override.SiteType == "indexphp" {
+			path = "/index.php"
+		}
 		if override.DevMode {
 			action := gziphandler.GzipHandler(limit(NewHandler(fmt.Sprintf(Webdir+"/%s/action/index.php", domain), "tcp", "127.0.0.1:8000")))
-			mux.Handle("/action/", AccessLog(action))
+			mux.Handle(path, AccessLog(action))
 			mux.Handle("/", BasicAuth(AccessLog(fs), "Backend", override.Admin, override.Authlist))
 		} else {
 			action := gziphandler.GzipHandler(limit(NewHandler(fmt.Sprintf(Webdir+"/%s/action/index.php", domain), "tcp", "127.0.0.1:8000")))
-			path := "/action/"
-			if override.SiteType == "indexphp" {
-				path = "/index.php"
-			}
 			mux.Handle(path, AccessLog(action))
 			mux.Handle("/", AccessLog(fs))
 		}
