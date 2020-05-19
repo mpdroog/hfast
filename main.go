@@ -13,6 +13,7 @@ import (
 	"github.com/mpdroog/hfast/logger"
 	"github.com/mpdroog/hfast/proxy"
 	"golang.org/x/crypto/acme/autocert"
+	"golang.org/x/net/netutil"
 	"golang.org/x/text/language"
 	"io/ioutil"
 	"net"
@@ -23,7 +24,6 @@ import (
 	"sync"
 	"syscall"
 	"time"
-"golang.org/x/net/netutil"
 )
 
 type Override struct {
@@ -45,7 +45,7 @@ var (
 	overrides  map[string]Override
 
 	Verbose bool
-	Webdir string
+	Webdir  string
 )
 
 func init() {
@@ -251,11 +251,10 @@ func main() {
 	logPath := ""
 
 	flag.BoolVar(&Verbose, "v", false, "Verbose-mode (log more)")
-        flag.StringVar(&Webdir, "w", "/var/www", "Webroot")
-        flag.BoolVar(&skipsysd, "s", false, "Disable systemd socket activation")
-        flag.StringVar(&logPath, "l", "/var/log/hfast.access.log", "Logpath")
+	flag.StringVar(&Webdir, "w", "/var/www", "Webroot")
+	flag.BoolVar(&skipsysd, "s", false, "Disable systemd socket activation")
+	flag.StringVar(&logPath, "l", "/var/log/hfast.access.log", "Logpath")
 	flag.Parse()
-
 
 	var listeners []net.Listener
 	if skipsysd {
@@ -266,8 +265,8 @@ func main() {
 		listeners = append(listeners, l)
 		l, e = listener(":80")
 		if e != nil {
-                        panic(e)
-                }
+			panic(e)
+		}
 		listeners = append(listeners, l)
 	} else {
 		listeners, e := activation.Listeners()
@@ -292,9 +291,9 @@ func main() {
 	SetLog(f)
 	wwwDomains := []string{}
 	siteTypes := map[string]bool{
-		"":     true,
-		"amp":  true,
-		"weak": true,
+		"":         true,
+		"amp":      true,
+		"weak":     true,
 		"indexphp": true,
 	}
 
@@ -358,10 +357,10 @@ func main() {
 			mux.Handle("/", BasicAuth(AccessLog(fs), "Backend", override.Admin, override.Authlist))
 		} else {
 			action := gziphandler.GzipHandler(limit(NewHandler(fmt.Sprintf(Webdir+"/%s/action/index.php", domain), "tcp", "127.0.0.1:8000")))
-                        path := "/action/"
-                        if override.SiteType == "indexphp" {
-				path = "/index.php";
-                        }
+			path := "/action/"
+			if override.SiteType == "indexphp" {
+				path = "/index.php"
+			}
 			mux.Handle(path, AccessLog(action))
 			mux.Handle("/", AccessLog(fs))
 		}
