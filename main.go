@@ -299,9 +299,11 @@ func main() {
 	}
 
 	for _, domain := range domains {
-		override, e := getOverride(fmt.Sprintf(Webdir+"/%s/override.toml", domain))
+		fname := fmt.Sprintf(Webdir+"/%s/override.toml", domain)
+		override, e := getOverride(fname)
 		if e != nil {
-			panic(e)
+			fmt.Printf("WARN_SKIP: Failed parsing(%s) e=%s\n", fname, e.Error())
+			continue
 		}
 
 		if domain == "default" {
