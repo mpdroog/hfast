@@ -34,6 +34,7 @@ type Override struct {
 	DevMode         bool              // Only allow admin user+pass
 	Authlist        map[string]bool
 	SiteType        string
+	Ratelimit       bool
 }
 
 const MAX_WORKERS = 50000 // max 50k go-routines per listener
@@ -356,13 +357,17 @@ func main() {
 		if override.SiteType == "indexphp" {
 			path = "/index.php"
 		}
+
+		php := NewHandler(fmt.Sprintf(Webdir+"/%s/action/index.php", domain), "tcp", "127.0.0.1:8000")
+		action := gziphandler.GzipHandler(limit(php))
+		if !override.Ratelimit {
+			action = gziphandler.GzipHandler(php)
+		}
+		mux.Handle(path, AccessLog(action))
+
 		if override.DevMode {
-			action := gziphandler.GzipHandler(limit(NewHandler(fmt.Sprintf(Webdir+"/%s/action/index.php", domain), "tcp", "127.0.0.1:8000")))
-			mux.Handle(path, AccessLog(action))
 			mux.Handle("/", BasicAuth(AccessLog(fs), "Backend", override.Admin, override.Authlist))
 		} else {
-			action := gziphandler.GzipHandler(limit(NewHandler(fmt.Sprintf(Webdir+"/%s/action/index.php", domain), "tcp", "127.0.0.1:8000")))
-			mux.Handle(path, AccessLog(action))
 			mux.Handle("/", AccessLog(fs))
 		}
 		overrides[domain] = override
