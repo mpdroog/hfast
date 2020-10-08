@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"github.com/BurntSushi/toml"
 	"github.com/NYTimes/gziphandler"
-	"github.com/VojtechVitek/ratelimit"
-	"github.com/VojtechVitek/ratelimit/memory"
+	"github.com/mpdroog/ratelimit"
+	"github.com/mpdroog/ratelimit/memory"
 	"github.com/coreos/go-systemd/activation"
 	"github.com/coreos/go-systemd/daemon"
 	"github.com/mpdroog/hfast/logger"
@@ -346,8 +346,9 @@ func main() {
 			langs[domain] = language.NewMatcher(tags)
 		}
 
+		mem := memory.NewLimited(1000)
 		fs := push(FileServer(Dir(fmt.Sprintf(Webdir+"/%s/pub", domain))))
-		limit := ratelimit.Request(ratelimit.IP).Rate(30, time.Minute).LimitBy(memory.New()) // 30req/min
+		limit := ratelimit.Request(ratelimit.IP).Rate(30, time.Minute).LimitBy(mem) // 30req/min
 
 		mux := &http.ServeMux{}
 		if len(override.Admin) > 0 {
