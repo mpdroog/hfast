@@ -38,6 +38,7 @@ type Override struct {
 }
 
 const MAX_WORKERS = 50000 // max 50k go-routines per listener
+const PHP_FPM "127.0.0.1:8000" // default FPM path
 
 var (
 	pushAssets map[string][]string
@@ -103,18 +104,23 @@ func stripPort(hostport string) string {
 type redirectHandler struct {
 }
 
+func normalizeHost(raw string) (host string, iswww bool) {
+	host = strings.ToLower(raw)
+	iswww = strings.HasPrefix(host, "www.")
+
+	if iswww {
+		host = host[len("www."):]
+	}
+	return
+}
+
 func (rh *redirectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" && r.Method != "HEAD" {
 		http.Error(w, "Use HTTPS", http.StatusBadRequest)
 		return
 	}
 
-	host := strings.ToLower(r.Host)
-	iswww := strings.HasPrefix(host, "www.")
-	if iswww {
-		host = host[len("www."):]
-	}
-
+	host, iswww := normalizeHost(r.Host)
 	if _, ok := muxs[host]; !ok {
 		if !strings.HasPrefix(host, "127.0.0.1") {
 			logger.Printf("Unmatched host: %s", host)
@@ -139,13 +145,15 @@ func (rh *redirectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func vhost() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		r.Host = strings.ToLower(r.Host)
-		if strings.HasPrefix(r.Host, "www.") {
-			host := r.Host[len("www."):]
+		host, iswww := normalizeHost(r.Host)
+
+		if iswww {
+			// Redirect http(s)://www.domain to https://domain
 			target := "https://" + stripPort(host) + r.URL.RequestURI()
 			http.Redirect(w, r, target, http.StatusMovedPermanently)
 			return
 		}
+
 		m, ok := muxs[r.Host]
 		if !ok {
 			logger.Printf("Unmatched host: %s", r.Host)
@@ -290,7 +298,11 @@ func main() {
 	}
 	defer f.Close()
 	SetLog(f)
+
+	// Lookup tbl for translating www-domain to domain
+	// (using lookup to ensure the domain is valid)
 	wwwDomains := []string{}
+	// Lookup valid site types
 	siteTypes := map[string]bool{
 		"":         true,
 		"amp":      true,
@@ -305,6 +317,9 @@ func main() {
 			fmt.Printf("WARN_SKIP: Failed parsing(%s) e=%s\n", fname, e.Error())
 			continue
 		}
+		if !siteTypes[override.SiteType] {
+			panic(fmt.Errorf("overrides.SiteType invalid, given=%s", override.SiteType))
+		}
 
 		if domain == "default" {
 			// Fallback domain
@@ -315,19 +330,18 @@ func main() {
 			overrides[domain] = override
 			continue
 		}
-		if !siteTypes[override.SiteType] {
-			panic(fmt.Errorf("overrides.SiteType invalid, given=%s", override.SiteType))
-		}
 		if !strings.HasPrefix(domain, "www.") {
 			wwwDomains = append(wwwDomains, "www."+domain)
 		}
 
+		// Reverse Proxy-mode (passing data to next node)
 		if len(override.Proxy) > 0 {
 			fn, e := proxy.Proxy(override.Proxy)
 			if e != nil {
 				panic(e)
 			}
 			mux := &http.ServeMux{}
+			// Devmode-enforces auth (IP or user+pass) protected domain
 			if override.DevMode {
 				mux.Handle("/", AccessLog(BasicAuth(fn, "Backend", override.Admin, override.Authlist)))
 			} else {
@@ -338,6 +352,7 @@ func main() {
 			continue
 		}
 
+		// Auto-redirect homepage request to /supported_lang/index
 		if len(override.Lang) > 0 {
 			var tags []language.Tag
 			for _, lang := range override.Lang {
@@ -346,22 +361,24 @@ func main() {
 			langs[domain] = language.NewMatcher(tags)
 		}
 
-		mem := memory.NewLimited(1000)
+		// Serve pub-dir and add ratelimiter
 		fs := push(FileServer(Dir(fmt.Sprintf(Webdir+"/%s/pub", domain))))
-		limit := ratelimit.Request(ratelimit.IP).Rate(30, time.Minute).LimitBy(mem) // 30req/min
+		limit := ratelimit.Request(ratelimit.IP).Rate(30, time.Minute).LimitBy(memory.NewLimited(1000)) // 30req/min
 
 		mux := &http.ServeMux{}
+		// Add /admin-path for mgmt
 		if len(override.Admin) > 0 {
-			admin := gziphandler.GzipHandler(NewHandler(fmt.Sprintf(Webdir+"/%s/admin/index.php", domain), "tcp", "127.0.0.1:8000"))
+			admin := gziphandler.GzipHandler(NewHandler(fmt.Sprintf(Webdir+"/%s/admin/index.php", domain), "tcp", PHP_FPM))
 			mux.Handle("/admin/", BasicAuth(AccessLog(admin), "Backend", override.Admin, override.Authlist))
 		}
 
+		// Base-path to make PHP active
 		path := "/action/"
 		if override.SiteType == "indexphp" {
 			path = "/index.php"
 		}
 
-		php := NewHandler(fmt.Sprintf(Webdir+"/%s/action/index.php", domain), "tcp", "127.0.0.1:8000")
+		php := NewHandler(fmt.Sprintf(Webdir+"/%s/action/index.php", domain), "tcp", PHP_FPM)
 		action := gziphandler.GzipHandler(limit(php))
 		if !override.Ratelimit {
 			action = gziphandler.GzipHandler(php)
