@@ -23,20 +23,32 @@ func BasicAuth(h http.Handler, realm string, userpass map[string]string, authlis
 				h.ServeHTTP(w, r)
 			} else {
 				// Blacklisted
-				w.WriteHeader(401)
+				w.WriteHeader(403)
 				w.Write([]byte("Blacklisted IP.\n"))
 			}
 			return
 		}
 
 		user, pass, ok := r.BasicAuth()
+		if !ok {
+			w.Header().Set("WWW-Authenticate", `Basic realm="`+realm+`"`)
+			w.WriteHeader(401)
+			w.Write([]byte("Unauthorised.\n"))
+			return
+		}
+
+		valid := false
 		for username, password := range userpass {
-			if !ok || subtle.ConstantTimeCompare([]byte(user), []byte(username)) != 1 || subtle.ConstantTimeCompare([]byte(pass), []byte(password)) != 1 {
-				w.Header().Set("WWW-Authenticate", `Basic realm="`+realm+`"`)
-				w.WriteHeader(401)
-				w.Write([]byte("Unauthorised.\n"))
-				return
+			if subtle.ConstantTimeCompare([]byte(user), []byte(username)) == 1 && subtle.ConstantTimeCompare([]byte(pass), []byte(password)) == 1 {
+				valid = true
+				break
 			}
+		}
+		if !valid {
+			w.Header().Set("WWW-Authenticate", `Basic realm="`+realm+`"`)
+			w.WriteHeader(401)
+			w.Write([]byte("Unauthorised.\n"))
+			return
 		}
 
 		h.ServeHTTP(w, r)

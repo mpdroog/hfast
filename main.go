@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"github.com/BurntSushi/toml"
 	"github.com/NYTimes/gziphandler"
-	"github.com/VojtechVitek/ratelimit"
-	"github.com/VojtechVitek/ratelimit/memory"
+	"github.com/mpdroog/ratelimit"
+	"github.com/mpdroog/ratelimit/memory"
 	"github.com/coreos/go-systemd/activation"
 	"github.com/coreos/go-systemd/daemon"
 	"github.com/mpdroog/hfast/logger"
 	"github.com/mpdroog/hfast/proxy"
 	"golang.org/x/crypto/acme/autocert"
+	"golang.org/x/net/netutil"
 	"golang.org/x/text/language"
 	"io/ioutil"
 	"net"
@@ -33,6 +34,7 @@ type Override struct {
 	DevMode         bool              // Only allow admin user+pass
 	Authlist        map[string]bool
 	SiteType        string
+	Ratelimit       bool
 }
 
 const MAX_WORKERS = 50000 // max 50k go-routines per listener
@@ -44,6 +46,7 @@ var (
 	overrides  map[string]Override
 
 	Verbose bool
+	Webdir  string
 )
 
 func init() {
@@ -157,7 +160,7 @@ func vhost() http.HandlerFunc {
 }
 
 func getDomains() ([]string, error) {
-	fileInfo, err := ioutil.ReadDir("/var/www/")
+	fileInfo, err := ioutil.ReadDir(Webdir)
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +169,7 @@ func getDomains() ([]string, error) {
 	for _, file := range fileInfo {
 		if file.IsDir() {
 			if strings.ToLower(file.Name()) != file.Name() {
-				return nil, fmt.Errorf("/var/www/" + file.Name() + " not lowercase!")
+				return nil, fmt.Errorf(Webdir + file.Name() + " not lowercase!")
 			}
 			out = append(out, file.Name())
 		}
@@ -235,18 +238,45 @@ func CORS(next http.Handler) http.Handler {
 	})
 }
 
+func listener(addr string) (net.Listener, error) {
+	ln, e := net.Listen("tcp", addr)
+	if e != nil {
+		return nil, e
+	}
+	aln := TCPKeepAliveListener{ln.(*net.TCPListener)}
+	return netutil.LimitListener(aln, MAX_WORKERS), nil
+}
+
 func main() {
-	// httpListen := ""
-	//flag.StringVar(&httpListen, "l", "", "HTTP iface:port (to override port 80 binding)")
+	skipsysd := false
+	logPath := ""
+
 	flag.BoolVar(&Verbose, "v", false, "Verbose-mode (log more)")
+	flag.StringVar(&Webdir, "w", "/var/www", "Webroot")
+	flag.BoolVar(&skipsysd, "s", false, "Disable systemd socket activation")
+	flag.StringVar(&logPath, "l", "/var/log/hfast.access.log", "Logpath")
 	flag.Parse()
 
-	listeners, e := activation.Listeners()
-	if e != nil {
-		panic(e)
-	}
-	if len(listeners) != 2 {
-		panic(fmt.Errorf("fd.socket activation (%d != 2)\n", len(listeners)))
+	var listeners []net.Listener
+	if skipsysd {
+		l, e := listener(":443")
+		if e != nil {
+			panic(e)
+		}
+		listeners = append(listeners, l)
+		l, e = listener(":80")
+		if e != nil {
+			panic(e)
+		}
+		listeners = append(listeners, l)
+	} else {
+		listeners, e := activation.Listeners()
+		if e != nil {
+			panic(e)
+		}
+		if len(listeners) != 2 {
+			panic(fmt.Errorf("fd.socket activation (%d != 2)\n", len(listeners)))
+		}
 	}
 
 	domains, e := getDomains()
@@ -254,7 +284,7 @@ func main() {
 		panic(e)
 	}
 
-	f, err := os.OpenFile("/var/log/hfast.access.log", os.O_APPEND|os.O_WRONLY, 0600)
+	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_WRONLY, 0600)
 	if err != nil {
 		panic(err)
 	}
@@ -262,20 +292,23 @@ func main() {
 	SetLog(f)
 	wwwDomains := []string{}
 	siteTypes := map[string]bool{
-		"":     true,
-		"amp":  true,
-		"weak": true,
+		"":         true,
+		"amp":      true,
+		"weak":     true,
+		"indexphp": true,
 	}
 
 	for _, domain := range domains {
-		override, e := getOverride(fmt.Sprintf("/var/www/%s/override.toml", domain))
+		fname := fmt.Sprintf(Webdir+"/%s/override.toml", domain)
+		override, e := getOverride(fname)
 		if e != nil {
-			panic(e)
+			fmt.Printf("WARN_SKIP: Failed parsing(%s) e=%s\n", fname, e.Error())
+			continue
 		}
 
 		if domain == "default" {
 			// Fallback domain
-			fs := FileServer(Dir(fmt.Sprintf("/var/www/%s/pub", domain)))
+			fs := FileServer(Dir(fmt.Sprintf(Webdir+"/%s/pub", domain)))
 			mux := &http.ServeMux{}
 			mux.Handle("/", fs)
 			muxs[domain] = SecureWrapper(AccessLog(mux))
@@ -313,21 +346,31 @@ func main() {
 			langs[domain] = language.NewMatcher(tags)
 		}
 
-		fs := push(FileServer(Dir(fmt.Sprintf("/var/www/%s/pub", domain))))
-		limit := ratelimit.Request(ratelimit.IP).Rate(30, time.Minute).LimitBy(memory.New()) // 30req/min
+		mem := memory.NewLimited(1000)
+		fs := push(FileServer(Dir(fmt.Sprintf(Webdir+"/%s/pub", domain))))
+		limit := ratelimit.Request(ratelimit.IP).Rate(30, time.Minute).LimitBy(mem) // 30req/min
 
 		mux := &http.ServeMux{}
 		if len(override.Admin) > 0 {
-			admin := gziphandler.GzipHandler(NewHandler(fmt.Sprintf("/var/www/%s/admin/index.php", domain), "tcp", "127.0.0.1:8000"))
+			admin := gziphandler.GzipHandler(NewHandler(fmt.Sprintf(Webdir+"/%s/admin/index.php", domain), "tcp", "127.0.0.1:8000"))
 			mux.Handle("/admin/", BasicAuth(AccessLog(admin), "Backend", override.Admin, override.Authlist))
 		}
+
+		path := "/action/"
+		if override.SiteType == "indexphp" {
+			path = "/index.php"
+		}
+
+		php := NewHandler(fmt.Sprintf(Webdir+"/%s/action/index.php", domain), "tcp", "127.0.0.1:8000")
+		action := gziphandler.GzipHandler(limit(php))
+		if !override.Ratelimit {
+			action = gziphandler.GzipHandler(php)
+		}
+		mux.Handle(path, AccessLog(action))
+
 		if override.DevMode {
-			action := gziphandler.GzipHandler(limit(NewHandler(fmt.Sprintf("/var/www/%s/action/index.php", domain), "tcp", "127.0.0.1:8000")))
-			mux.Handle("/action/", AccessLog(action))
 			mux.Handle("/", BasicAuth(AccessLog(fs), "Backend", override.Admin, override.Authlist))
 		} else {
-			action := gziphandler.GzipHandler(limit(NewHandler(fmt.Sprintf("/var/www/%s/action/index.php", domain), "tcp", "127.0.0.1:8000")))
-			mux.Handle("/action/", AccessLog(action))
 			mux.Handle("/", AccessLog(fs))
 		}
 		overrides[domain] = override
@@ -336,7 +379,7 @@ func main() {
 			muxs[domain] = CORS(muxs[domain])
 		}
 
-		a, e := getPush(fmt.Sprintf("/var/www/%s/pub/push", domain))
+		a, e := getPush(fmt.Sprintf(Webdir+"/%s/pub/push", domain))
 		if e != nil {
 			panic(e)
 		}
@@ -400,6 +443,9 @@ func main() {
 
 	// watchdog
 	go func() {
+		if skipsysd {
+			return
+		}
 		interval, e := daemon.SdWatchdogEnabled(false)
 		if e != nil || interval == 0 {
 			panic(e)
