@@ -1,7 +1,8 @@
 [Unit]
 Description=HTTPd Fast
 Requires=network.target
-After=multi-user.target
+After=network.target hfast.socket
+Requires=hfast.socket
 
 [Service]
 LimitNOFILE=8192
@@ -29,4 +30,4 @@ ReadOnlyDirectories=/var/www
 MemoryLimit=512M
 
 [Install]
-WantedBy=multi-user.target
+Also=hfast.socket

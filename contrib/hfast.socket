@@ -1,3 +1,7 @@
+[Unit]
+Description=HFast Sockets
+PartOf=hfast.service
+
 [Socket]
 ListenStream = 443
 BindIPv6Only = both
