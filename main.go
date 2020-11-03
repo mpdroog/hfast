@@ -145,7 +145,7 @@ func main() {
 		panic(err)
 	}
 	defer f.Close()
-	SetLog(f)
+	handlers.SetLog(f)
 
 	// Lookup tbl for translating www-domain to domain
 	// (using lookup to ensure the domain is valid)
@@ -174,7 +174,7 @@ func main() {
 			fs := FileServer(Dir(fmt.Sprintf(config.Webdir+"/%s/pub", domain)))
 			mux := &http.ServeMux{}
 			mux.Handle("/", fs)
-			config.Muxs[domain] = handlers.SecureWrapper(AccessLog(mux))
+			config.Muxs[domain] = handlers.SecureWrapper(handlers.AccessLog(mux))
 			config.Overrides[domain] = override
 			continue
 		}
@@ -191,9 +191,9 @@ func main() {
 			mux := &http.ServeMux{}
 			// Devmode-enforces auth (IP or user+pass) protected domain
 			if override.DevMode {
-				mux.Handle("/", AccessLog(BasicAuth(fn, "Backend", override.Admin, override.Authlist)))
+				mux.Handle("/", handlers.AccessLog(handlers.BasicAuth(fn, "Backend", override.Admin, override.Authlist)))
 			} else {
-				mux.Handle("/", AccessLog(fn))
+				mux.Handle("/", handlers.AccessLog(fn))
 			}
 			config.Overrides[domain] = override
 			config.Muxs[domain] = handlers.SecureWrapper(mux)
@@ -217,7 +217,7 @@ func main() {
 		// Add /admin-path for mgmt
 		if len(override.Admin) > 0 {
 			admin := gziphandler.GzipHandler(NewHandler(fmt.Sprintf(config.Webdir+"/%s/admin/index.php", domain), "tcp", config.PHP_FPM))
-			mux.Handle("/admin/", BasicAuth(AccessLog(admin), "Backend", override.Admin, override.Authlist))
+			mux.Handle("/admin/", handlers.BasicAuth(handlers.AccessLog(admin), "Backend", override.Admin, override.Authlist))
 		}
 
 		// Base-path to make PHP active
@@ -231,12 +231,12 @@ func main() {
 		if !override.Ratelimit {
 			action = gziphandler.GzipHandler(php)
 		}
-		mux.Handle(path, AccessLog(action))
+		mux.Handle(path, handlers.AccessLog(action))
 
 		if override.DevMode {
-			mux.Handle("/", BasicAuth(AccessLog(fs), "Backend", override.Admin, override.Authlist))
+			mux.Handle("/", handlers.BasicAuth(handlers.AccessLog(fs), "Backend", override.Admin, override.Authlist))
 		} else {
-			mux.Handle("/", AccessLog(fs))
+			mux.Handle("/", handlers.AccessLog(fs))
 		}
 		config.Overrides[domain] = override
 		config.Muxs[domain] = handlers.SecureWrapper(mux)
