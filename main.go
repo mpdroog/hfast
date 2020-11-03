@@ -38,7 +38,7 @@ type Override struct {
 }
 
 const MAX_WORKERS = 50000 // max 50k go-routines per listener
-const PHP_FPM "127.0.0.1:8000" // default FPM path
+const PHP_FPM = "127.0.0.1:8000" // default FPM path
 
 var (
 	pushAssets map[string][]string
