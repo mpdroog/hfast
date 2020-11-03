@@ -1,10 +1,11 @@
 // https://github.com/unrolled/secure/blob/v1/secure.go
-package main
+package handlers
 
 import (
 	"fmt"
 	"net/http"
 	"strings"
+	"github.com/mpdroog/hfast/config"
 )
 
 const (
@@ -42,9 +43,9 @@ func sec(domains []string, appMode string) map[string]string {
 
 func SecureWrapper(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		override, ok := overrides[r.Host]
+		override, ok := config.Overrides[r.Host]
 		if !ok {
-			override = overrides["default"]
+			override = config.Overrides["default"]
 			// panic(fmt.Sprintf("DevErr: Host(%s) not configured", host))
 		}
 

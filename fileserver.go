@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/mpdroog/hfast/logger"
+	"github.com/mpdroog/hfast/config"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -187,7 +188,7 @@ func serveContent(w http.ResponseWriter, r *http.Request, name string, modtime t
 	}
 
 	code := http.StatusOK
-	if _, ok := overrides[r.Host]; !ok && r.URL.Path == "/" {
+	if _, ok := config.Overrides[r.Host]; !ok && r.URL.Path == "/" {
 		// mpdroog: Default to notfound to clarify to any caller the given URL is invalid
 		code = http.StatusNotFound
 	}

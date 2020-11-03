@@ -12,6 +12,8 @@ import (
 	"github.com/coreos/go-systemd/daemon"
 	"github.com/mpdroog/hfast/logger"
 	"github.com/mpdroog/hfast/proxy"
+	"github.com/mpdroog/hfast/config"
+	"github.com/mpdroog/hfast/handlers"
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/net/netutil"
 	"golang.org/x/text/language"
@@ -26,149 +28,8 @@ import (
 	"time"
 )
 
-type Override struct {
-	Proxy           string // Just forward to given addr
-	ExcludedDomains []string
-	Lang            []string
-	Admin           map[string]string // Admin user+pass
-	DevMode         bool              // Only allow admin user+pass
-	Authlist        map[string]bool
-	SiteType        string
-	Ratelimit       bool
-}
-
-const MAX_WORKERS = 50000 // max 50k go-routines per listener
-const PHP_FPM = "127.0.0.1:8000" // default FPM path
-
-var (
-	pushAssets map[string][]string
-	muxs       map[string]http.Handler
-	langs      map[string]language.Matcher
-	overrides  map[string]Override
-
-	Verbose bool
-	Webdir  string
-)
-
-func init() {
-	pushAssets = make(map[string][]string)
-	muxs = make(map[string]http.Handler)
-	langs = make(map[string]language.Matcher)
-	overrides = make(map[string]Override)
-}
-
-func push(h http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		r.Host = strings.ToLower(r.Host)
-
-		w.Header().Set("Vary", "Accept-Encoding")
-		if assets, ok := pushAssets[r.Host]; r.URL.Path == "/" && ok {
-			if pusher, ok := w.(http.Pusher); ok {
-				for _, asset := range assets {
-					if err := pusher.Push(asset, nil); err != nil {
-						logger.Printf("Failed push: %v", err)
-						break
-					}
-				}
-			}
-		}
-
-		match, ok := langs[r.Host]
-		if r.URL.Path == "/" && ok {
-			// Multi-lang
-			// TODO: err handle?
-			t, _, _ := language.ParseAcceptLanguage(r.Header.Get("Accept-Language"))
-
-			tag, _, _ := match.Match(t...)
-			lang := tag.String()
-			if strings.Contains(lang, "-") {
-				lang = lang[0:strings.Index(lang, "-")]
-			}
-
-			target := "https://" + r.Host + "/" + lang + "/"
-			http.Redirect(w, r, target, http.StatusFound)
-			return
-		}
-		h.ServeHTTP(w, r)
-	})
-}
-
-func stripPort(hostport string) string {
-	host, _, err := net.SplitHostPort(hostport)
-	if err != nil {
-		return hostport
-	}
-	return net.JoinHostPort(host, "443")
-}
-
-type redirectHandler struct {
-}
-
-func normalizeHost(raw string) (host string, iswww bool) {
-	host = strings.ToLower(raw)
-	iswww = strings.HasPrefix(host, "www.")
-
-	if iswww {
-		host = host[len("www."):]
-	}
-	return
-}
-
-func (rh *redirectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "GET" && r.Method != "HEAD" {
-		http.Error(w, "Use HTTPS", http.StatusBadRequest)
-		return
-	}
-
-	host, iswww := normalizeHost(r.Host)
-	if _, ok := muxs[host]; !ok {
-		if !strings.HasPrefix(host, "127.0.0.1") {
-			logger.Printf("Unmatched host: %s", host)
-		}
-
-		if mux, ok := muxs["default"]; ok {
-			mux.ServeHTTP(w, r)
-			return
-		}
-
-		http.Error(w, "ERR: No such site.", http.StatusBadRequest)
-		return
-	}
-
-	target := "https://" + stripPort(host) + r.URL.RequestURI()
-	status := http.StatusFound
-	if iswww {
-		status = http.StatusMovedPermanently
-	}
-	http.Redirect(w, r, target, status)
-}
-
-func vhost() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		host, iswww := normalizeHost(r.Host)
-
-		if iswww {
-			// Redirect http(s)://www.domain to https://domain
-			target := "https://" + stripPort(host) + r.URL.RequestURI()
-			http.Redirect(w, r, target, http.StatusMovedPermanently)
-			return
-		}
-
-		m, ok := muxs[r.Host]
-		if !ok {
-			logger.Printf("Unmatched host: %s", r.Host)
-			w.Write([]byte("ERR: No such site."))
-			return
-		}
-		m.ServeHTTP(w, r)
-		// Strip off sensitive info
-		w.Header().Del("X-Powered-By")
-		w.Header().Set("Server", "HFast")
-	}
-}
-
 func getDomains() ([]string, error) {
-	fileInfo, err := ioutil.ReadDir(Webdir)
+	fileInfo, err := ioutil.ReadDir(config.Webdir)
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +38,7 @@ func getDomains() ([]string, error) {
 	for _, file := range fileInfo {
 		if file.IsDir() {
 			if strings.ToLower(file.Name()) != file.Name() {
-				return nil, fmt.Errorf(Webdir + file.Name() + " not lowercase!")
+				return nil, fmt.Errorf(config.Webdir + file.Name() + " not lowercase!")
 			}
 			out = append(out, file.Name())
 		}
@@ -216,8 +77,8 @@ func getPush(path string) ([]string, error) {
 	return out, nil
 }
 
-func getOverride(path string) (Override, error) {
-	c := Override{}
+func getOverride(path string) (config.Override, error) {
+	c := config.Override{}
 
 	if _, e := os.Stat(path); os.IsNotExist(e) {
 		return c, nil
@@ -232,35 +93,22 @@ func getOverride(path string) (Override, error) {
 	return c, e
 }
 
-func CORS(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
-		w.Header().Set("Access-Control-Allow-Methods", "GET,HEAD,OPTIONS,POST,PUT")
-		w.Header().Set("Access-Control-Allow-Headers", "Access-Control-Allow-Headers, Origin,Accept, X-Requested-With, Content-Type, Access-Control-Request-Method, Access-Control-Request-Headers,AMP-Redirect-To")
-		if r.Method == "OPTIONS" {
-			w.Write([]byte("CORS :)"))
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
 func listener(addr string) (net.Listener, error) {
 	ln, e := net.Listen("tcp", addr)
 	if e != nil {
 		return nil, e
 	}
 	aln := TCPKeepAliveListener{ln.(*net.TCPListener)}
-	return netutil.LimitListener(aln, MAX_WORKERS), nil
+	return netutil.LimitListener(aln, config.MAX_WORKERS), nil
 }
 
 func main() {
 	skipsysd := false
 	logPath := ""
 
-	flag.BoolVar(&Verbose, "v", false, "Verbose-mode (log more)")
-	flag.StringVar(&Webdir, "w", "/var/www", "Webroot")
+	//flag.BoolVar(&Test, "t", false, "Test-config and close")
+	flag.BoolVar(&config.Verbose, "v", false, "Verbose-mode (log more)")
+	flag.StringVar(&config.Webdir, "w", "/var/www", "Webroot")
 	flag.BoolVar(&skipsysd, "s", false, "Disable systemd socket activation")
 	flag.StringVar(&logPath, "l", "/var/log/hfast.access.log", "Logpath")
 	flag.Parse()
@@ -311,7 +159,7 @@ func main() {
 	}
 
 	for _, domain := range domains {
-		fname := fmt.Sprintf(Webdir+"/%s/override.toml", domain)
+		fname := fmt.Sprintf(config.Webdir+"/%s/override.toml", domain)
 		override, e := getOverride(fname)
 		if e != nil {
 			fmt.Printf("WARN_SKIP: Failed parsing(%s) e=%s\n", fname, e.Error())
@@ -323,11 +171,11 @@ func main() {
 
 		if domain == "default" {
 			// Fallback domain
-			fs := FileServer(Dir(fmt.Sprintf(Webdir+"/%s/pub", domain)))
+			fs := FileServer(Dir(fmt.Sprintf(config.Webdir+"/%s/pub", domain)))
 			mux := &http.ServeMux{}
 			mux.Handle("/", fs)
-			muxs[domain] = SecureWrapper(AccessLog(mux))
-			overrides[domain] = override
+			config.Muxs[domain] = handlers.SecureWrapper(AccessLog(mux))
+			config.Overrides[domain] = override
 			continue
 		}
 		if !strings.HasPrefix(domain, "www.") {
@@ -347,8 +195,8 @@ func main() {
 			} else {
 				mux.Handle("/", AccessLog(fn))
 			}
-			overrides[domain] = override
-			muxs[domain] = SecureWrapper(mux)
+			config.Overrides[domain] = override
+			config.Muxs[domain] = handlers.SecureWrapper(mux)
 			continue
 		}
 
@@ -358,17 +206,17 @@ func main() {
 			for _, lang := range override.Lang {
 				tags = append(tags, language.MustParse(lang))
 			}
-			langs[domain] = language.NewMatcher(tags)
+			config.Langs[domain] = language.NewMatcher(tags)
 		}
 
 		// Serve pub-dir and add ratelimiter
-		fs := push(FileServer(Dir(fmt.Sprintf(Webdir+"/%s/pub", domain))))
+		fs := handlers.Push(FileServer(Dir(fmt.Sprintf(config.Webdir+"/%s/pub", domain))))
 		limit := ratelimit.Request(ratelimit.IP).Rate(30, time.Minute).LimitBy(memory.NewLimited(1000)) // 30req/min
 
 		mux := &http.ServeMux{}
 		// Add /admin-path for mgmt
 		if len(override.Admin) > 0 {
-			admin := gziphandler.GzipHandler(NewHandler(fmt.Sprintf(Webdir+"/%s/admin/index.php", domain), "tcp", PHP_FPM))
+			admin := gziphandler.GzipHandler(NewHandler(fmt.Sprintf(config.Webdir+"/%s/admin/index.php", domain), "tcp", config.PHP_FPM))
 			mux.Handle("/admin/", BasicAuth(AccessLog(admin), "Backend", override.Admin, override.Authlist))
 		}
 
@@ -378,7 +226,7 @@ func main() {
 			path = "/index.php"
 		}
 
-		php := NewHandler(fmt.Sprintf(Webdir+"/%s/action/index.php", domain), "tcp", PHP_FPM)
+		php := NewHandler(fmt.Sprintf(config.Webdir+"/%s/action/index.php", domain), "tcp", config.PHP_FPM)
 		action := gziphandler.GzipHandler(limit(php))
 		if !override.Ratelimit {
 			action = gziphandler.GzipHandler(php)
@@ -390,17 +238,17 @@ func main() {
 		} else {
 			mux.Handle("/", AccessLog(fs))
 		}
-		overrides[domain] = override
-		muxs[domain] = SecureWrapper(mux)
+		config.Overrides[domain] = override
+		config.Muxs[domain] = handlers.SecureWrapper(mux)
 		if override.SiteType == "amp" {
-			muxs[domain] = CORS(muxs[domain])
+			config.Muxs[domain] = handlers.CORS(config.Muxs[domain])
 		}
 
-		a, e := getPush(fmt.Sprintf(Webdir+"/%s/pub/push", domain))
+		a, e := getPush(fmt.Sprintf(config.Webdir+"/%s/pub/push", domain))
 		if e != nil {
 			panic(e)
 		}
-		pushAssets[domain] = a
+		config.PushAssets[domain] = a
 	}
 	domains = append(domains, wwwDomains...)
 
@@ -420,7 +268,7 @@ func main() {
 	wg.Add(1)
 	go func() {
 		s := &http.Server{
-			Handler:      RecoverWrap(m.HTTPHandler(&redirectHandler{})),
+			Handler:      RecoverWrap(m.HTTPHandler(&handlers.RedirectHandler{})),
 			ReadTimeout:  5 * time.Second,
 			WriteTimeout: 10 * time.Second,
 			IdleTimeout:  15 * time.Second,
@@ -440,7 +288,7 @@ func main() {
 	go func() {
 		s := &http.Server{
 			TLSConfig:    m.TLSConfig(),
-			Handler:      RecoverWrap(vhost()),
+			Handler:      RecoverWrap(handlers.Vhost()),
 			ReadTimeout:  5 * time.Second,
 			WriteTimeout: 10 * time.Second,
 			IdleTimeout:  15 * time.Second,
@@ -476,7 +324,7 @@ func main() {
 		client := &http.Client{Transport: tr}
 		addr := listeners[1].Addr().String()
 		port := addr[strings.LastIndex(addr, ":"):]
-		if Verbose {
+		if config.Verbose {
 			fmt.Printf("ticker interval=%d addr=%s\n", interval/3, "http://127.0.0.1"+port)
 		}
 
@@ -494,7 +342,7 @@ func main() {
 					fmt.Printf("KeepAlive.err: %s\n", e.Error())
 				} else {
 					res.Body.Close()
-					if Verbose {
+					if config.Verbose {
 						fmt.Printf("watchdog.notify\n")
 					}
 					daemon.SdNotify(false, "WATCHDOG=1")
