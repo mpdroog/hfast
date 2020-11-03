@@ -113,25 +113,43 @@ func main() {
 	flag.StringVar(&logPath, "l", "/var/log/hfast.access.log", "Logpath")
 	flag.Parse()
 
-	var listeners []net.Listener
-	if skipsysd {
-		l, e := listener(":443")
-		if e != nil {
-			panic(e)
+	// Socket/self activation
+	listeners := make(map[string]net.Listener)
+	{
+		haveHTTP := false
+		haveHTTPS := false
+
+		if !skipsysd {
+			activated, e := activation.Listeners()
+			if e != nil {
+				panic(e)
+			}
+			for _, addr := range activated {
+				if strings.HasSuffix(addr.Addr().String(), ":80") {
+					haveHTTP = true
+					listeners["HTTP"] = addr
+				} else if strings.HasSuffix(addr.Addr().String(), ":443") {
+					haveHTTPS = true
+					listeners["HTTPS"] = addr
+				} else {
+					panic("Unsupported listener-addr=" + addr.Addr().String())
+				}
+			}
 		}
-		listeners = append(listeners, l)
-		l, e = listener(":80")
-		if e != nil {
-			panic(e)
+
+		if !haveHTTP {
+			l, e := listener(":443")
+			if e != nil {
+				panic(e)
+			}
+			listeners["HTTPS"] = l
 		}
-		listeners = append(listeners, l)
-	} else {
-		listeners, e := activation.Listeners()
-		if e != nil {
-			panic(e)
-		}
-		if len(listeners) != 2 {
-			panic(fmt.Errorf("fd.socket activation (%d != 2)\n", len(listeners)))
+		if !haveHTTPS {
+			l, e := listener(":80")
+			if e != nil {
+				panic(e)
+			}
+			listeners["HTTP"] = l
 		}
 	}
 
@@ -275,7 +293,7 @@ func main() {
 			ErrorLog:     logger.Logger("@main.http-server: "),
 		}
 		httpServer = s
-		ln := listeners[1]
+		ln := listeners["HTTP"]
 		defer ln.Close()
 		if e := s.Serve(ln); e != nil && e != http.ErrServerClosed {
 			logger.Fatal(e)
@@ -295,7 +313,7 @@ func main() {
 			ErrorLog:     logger.Logger("@main.https-server: "),
 		}
 		httpsServer = s
-		ln := listeners[0]
+		ln := listeners["HTTPS"]
 		defer ln.Close()
 		if e := s.ServeTLS(ln, "", ""); e != nil && e != http.ErrServerClosed {
 			panic(e)
@@ -322,7 +340,7 @@ func main() {
 			IdleConnTimeout: 10 * time.Second,
 		}
 		client := &http.Client{Transport: tr}
-		addr := listeners[1].Addr().String()
+		addr := listeners["HTTP"].Addr().String()
 		port := addr[strings.LastIndex(addr, ":"):]
 		if config.Verbose {
 			fmt.Printf("ticker interval=%d addr=%s\n", interval/3, "http://127.0.0.1"+port)
