@@ -3,9 +3,9 @@ package handlers
 
 import (
 	"fmt"
+	"github.com/mpdroog/hfast/config"
 	"net/http"
 	"strings"
-	"github.com/mpdroog/hfast/config"
 )
 
 const (

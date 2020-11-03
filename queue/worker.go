@@ -16,13 +16,13 @@
 package queue
 
 import (
-	"net"
+	"bufio"
+	"fmt"
 	"github.com/boltdb/bolt"
 	"log"
-	"bufio"
-	"time"
+	"net"
 	"strings"
-	"fmt"
+	"time"
 )
 
 type Msg struct {
@@ -34,6 +34,7 @@ var requeue map[string]chan Msg // re=retry
 
 // Limit amount of connected workers
 const WORKER_MAX = 100
+
 // Default listener
 const WORKER_LISTEN = "localhost:11300"
 
@@ -65,7 +66,7 @@ func handle(conn net.Conn) {
 	timer := time.NewTicker(time.Minute)
 	defer timer.Stop()
 
-	var channel string 
+	var channel string
 	buf := bufio.NewReader(conn)
 	for {
 		msg, e := buf.ReadString('\n')
@@ -75,12 +76,12 @@ func handle(conn net.Conn) {
 			break
 		}
 		if !lockDeadline {
-			if e := conn.SetDeadline(time.Now().Add(2*time.Minute)); e != nil {
+			if e := conn.SetDeadline(time.Now().Add(2 * time.Minute)); e != nil {
 				log.Printf("queue.SetDeadline e=%s", e.Error())
 				break
 			}
 		}
-		tok := strings.SplitN(msg, " ", 2)   // Limit 2 tokens
+		tok := strings.SplitN(msg, " ", 2) // Limit 2 tokens
 		if tok[0] == "CHAN" {
 			channel = tok[1]
 			if _, e := conn.Write([]byte("READY\r\n")); e != nil {
@@ -93,7 +94,7 @@ func handle(conn net.Conn) {
 			// Job is processed
 			lockDeadline = false
 		} else {
-			if _, e :=  conn.Write([]byte("INVALID\r\n")); e != nil {
+			if _, e := conn.Write([]byte("INVALID\r\n")); e != nil {
 				log.Printf("queue.handle(CHAN) e=%s", e.Error())
 			}
 			break

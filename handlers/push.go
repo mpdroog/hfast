@@ -1,11 +1,11 @@
 package handlers
 
 import (
-	"net/http"
-	"golang.org/x/text/language"
-	"strings"
 	"github.com/mpdroog/hfast/config"
 	"github.com/mpdroog/hfast/logger"
+	"golang.org/x/text/language"
+	"net/http"
+	"strings"
 )
 
 func Push(h http.Handler) http.Handler {

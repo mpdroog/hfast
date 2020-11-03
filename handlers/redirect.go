@@ -1,11 +1,11 @@
 package handlers
 
 import (
+	"github.com/mpdroog/hfast/config"
+	"github.com/mpdroog/hfast/logger"
 	"net"
 	"net/http"
 	"strings"
-	"github.com/mpdroog/hfast/config"
-	"github.com/mpdroog/hfast/logger"
 )
 
 func stripPort(hostport string) string {

@@ -14,8 +14,8 @@ package main
 import (
 	"errors"
 	"fmt"
-	"github.com/mpdroog/hfast/logger"
 	"github.com/mpdroog/hfast/config"
+	"github.com/mpdroog/hfast/logger"
 	"io"
 	"mime"
 	"mime/multipart"

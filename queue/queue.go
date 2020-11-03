@@ -17,17 +17,17 @@ package queue
 
 import (
 	"crypto/md5"
+	"encoding/binary"
+	"encoding/json"
+	"fmt"
 	"github.com/boltdb/bolt"
 	"net/http"
-	"sync"
 	"strings"
-	"encoding/json"
-	"encoding/binary"
-	"fmt"
+	"sync"
 )
 
 var (
-	db *bolt.DB
+	db    *bolt.DB
 	state *sync.Map
 )
 
@@ -101,7 +101,7 @@ func Req(w http.ResponseWriter, r *http.Request) {
 	if secret == "" {
 		panic("Missing secret-key")
 	}
-	if hash != fmt.Sprintf("%x", md5.Sum([]byte(secret + channel))) {
+	if hash != fmt.Sprintf("%x", md5.Sum([]byte(secret+channel))) {
 		w.WriteHeader(403)
 		w.Write([]byte("Invalid hash.\n"))
 		return
@@ -113,7 +113,7 @@ func Req(w http.ResponseWriter, r *http.Request) {
 			return e
 		}
 
-		bucketName := domain+"_"+channel
+		bucketName := domain + "_" + channel
 		bchan, e := b.CreateBucketIfNotExists([]byte(bucketName))
 		if e != nil {
 			return e

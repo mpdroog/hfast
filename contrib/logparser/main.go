@@ -39,7 +39,7 @@ type Output struct {
 }
 
 func FormatMsg(m Msg) Msg {
-	pfxs := []string {
+	pfxs := []string{
 		"https://www.paypal.com/webapps/hermes",
 		"https://betalen.rabobank.nl/ideal-betaling/",
 		"https://www.mollie.com/paymentscreen",
@@ -48,7 +48,7 @@ func FormatMsg(m Msg) Msg {
 	for _, pfx := range pfxs {
 		if strings.HasPrefix(m.Referer, pfx) {
 			m.Referer = pfx
-		}		
+		}
 	}
 	if strings.HasPrefix(m.Referer, "https://usenet.today") {
 		m.Referer = ""

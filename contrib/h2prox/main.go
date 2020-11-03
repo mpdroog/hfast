@@ -10,8 +10,8 @@ import (
 	"github.com/mpdroog/hfast/proxy"
 	"net/http"
 	"os"
-	"time"
 	"sync"
+	"time"
 )
 
 type Proxy struct {

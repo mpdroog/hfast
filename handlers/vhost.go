@@ -1,9 +1,9 @@
 package handlers
 
 import (
-	"net/http"
 	"github.com/mpdroog/hfast/config"
 	"github.com/mpdroog/hfast/logger"
+	"net/http"
 )
 
 func Vhost() http.HandlerFunc {
