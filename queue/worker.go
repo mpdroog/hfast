@@ -23,12 +23,15 @@ import (
 	"net"
 	"strings"
 	"time"
+	"github.com/mpdroog/hfast/config"
+	"encoding/binary"
 )
 
 type Msg struct {
 	Id []byte
 }
 
+var Listen net.Listener
 var queue map[string]chan Msg
 var requeue map[string]chan Msg // re=retry
 
@@ -38,21 +41,28 @@ const WORKER_MAX = 100
 // Default listener
 const WORKER_LISTEN = "localhost:11300"
 
-// WARN: This function is blocking
-func Serve(listen string) error {
+func init() {
+	queue = make(map[string]chan Msg)
+	requeue = make(map[string]chan Msg)
+}
+
+func Serve(listen string) (func()error, error) {
 	ln, e := net.Listen("tcp", listen)
 	if e != nil {
-		return e
+		return nil, e
 	}
+	Listen = ln
 
-	for {
-		conn, e := ln.Accept()
-		if e != nil {
-			log.Printf("queue.Serve(%s) e=%s", listen, e.Error())
-			continue
+	return func() error {
+		for {
+			conn, e := Listen.Accept()
+			if e != nil {
+				log.Printf("queue.Serve(%s) e=%s", listen, e.Error())
+				continue
+			}
+			go handle(conn)
 		}
-		go handle(conn)
-	}
+	}, nil
 }
 
 func handle(conn net.Conn) {
@@ -62,75 +72,108 @@ func handle(conn net.Conn) {
 		return
 	}
 
-	lockDeadline := false
-	timer := time.NewTicker(time.Minute)
-	defer timer.Stop()
-
+	state := 0
 	var channel string
+	var curmsg *Msg
 	buf := bufio.NewReader(conn)
 	for {
 		msg, e := buf.ReadString('\n')
+		msg = strings.TrimSpace(msg)
 		if e != nil {
-			// Erro reading
+			// Error reading
 			log.Printf("buf.ReadString e=%s", e.Error())
 			break
 		}
-		if !lockDeadline {
-			if e := conn.SetDeadline(time.Now().Add(2 * time.Minute)); e != nil {
-				log.Printf("queue.SetDeadline e=%s", e.Error())
-				break
-			}
-		}
 		tok := strings.SplitN(msg, " ", 2) // Limit 2 tokens
-		if tok[0] == "CHAN" {
-			channel = tok[1]
-			if _, e := conn.Write([]byte("READY\r\n")); e != nil {
-				log.Printf("queue.handle(CHAN) e=%s", e.Error())
+		if config.Verbose {
+			fmt.Printf("queue.handle(state=%d) msg=%+v\n", state, tok)
+		}
+
+		if state == 0 {
+			if tok[0] == "CHAN" {
+				channel = tok[1]
+				if _, e := conn.Write([]byte("READY\r\n")); e != nil {
+					log.Printf("queue.handle(CHAN) e=%s", e.Error())
+					break
+				}
+				state = 1
+			} else {
+				if _, e := conn.Write([]byte("INVALID\r\n")); e != nil {
+					log.Printf("queue.handle(CHAN) e=%s", e.Error())
+				}
 				break
 			}
-		} else if tok[0] == "PONG" {
-			// TODO: Add arg to prevent ahead of time messups
-		} else if tok[0] == "OK" {
-			// Job is processed
-			lockDeadline = false
+		} else if state == 1 {
+			if tok[0] == "READY" {
+				var msg Msg
+				select {
+					case msg = <-requeue[channel]:
+					case msg = <-queue[channel]:
+				}
+				if config.Verbose {
+					fmt.Printf("queue.handle(READY) msg=%+v\n", msg)
+				}
+				curmsg = &msg
+				state = 2
+
+				var v []byte
+				e := db.View(func(tx *bolt.Tx) error {
+					b := tx.Bucket([]byte("queue"))
+					bjob := b.Bucket([]byte(channel))
+					v = bjob.Get([]byte(msg.Id))
+					return nil
+				})
+				if e != nil {
+					log.Printf("queue.handle(msg) e=%s", e.Error())
+					break
+				}
+
+				id := int64(binary.LittleEndian.Uint64(msg.Id))
+				if _, e := conn.Write([]byte(fmt.Sprintf("JOB %d %d\r\n", id, len(v)))); e != nil {
+					log.Printf("queue.handle(CHAN) e=%s", e.Error())
+					break
+				}
+				if _, e := conn.Write(v); e != nil {
+					log.Printf("queue.handle(CHAN) e=%s", e.Error())
+					break
+				}
+				// Worker has 1-minute
+				if e := conn.SetDeadline(time.Now().Add(time.Minute)); e != nil {
+					log.Printf("queue.SetDeadline e=%s", e.Error())
+					break
+				}
+			} else {
+				// Invalid cmd
+				if _, e := conn.Write([]byte("INVALID\r\n")); e != nil {
+					log.Printf("queue.handle(CHAN) e=%s", e.Error())
+				}
+				break
+			}
 		} else {
-			if _, e := conn.Write([]byte("INVALID\r\n")); e != nil {
-				log.Printf("queue.handle(CHAN) e=%s", e.Error())
-			}
-			break
-		}
+			if tok[0] == "PONG" {
+				// TODO: Add arg to prevent ahead of time messups
+				// Give 2 more minutes for processing
+				if e := conn.SetDeadline(time.Now().Add(2 * time.Minute)); e != nil {
+					log.Printf("queue.SetDeadline e=%s", e.Error())
+					break
+				}
 
-		select {
-		case <-timer.C:
-			if _, e := conn.Write([]byte("PING\r\n")); e != nil {
-				log.Printf("queue.handle(PING) e=%s", e.Error())
-				break
-			}
-		case msg := <-queue[channel]:
-			// TODO: Memory friendly?
-			var v []byte
-			e := db.View(func(tx *bolt.Tx) error {
-				b := tx.Bucket([]byte("queue"))
-				bjob := b.Bucket([]byte(channel))
-				v = bjob.Get([]byte(msg.Id))
-				return nil
-			})
-			if e != nil {
-				log.Printf("queue.handle(msg) e=%s", e.Error())
-				break
-			}
-
-			if _, e := conn.Write([]byte(fmt.Sprintf("JOB %d %d\r\n", msg.Id, len(v)))); e != nil {
-				log.Printf("queue.handle(CHAN) e=%s", e.Error())
-				break
-			}
-
-			// Worker has 1-minute
-			lockDeadline = true
-			if e := conn.SetDeadline(time.Now().Add(time.Minute)); e != nil {
-				log.Printf("queue.SetDeadline e=%s", e.Error())
+			} else if tok[0] == "OK" {
+				// Job is processed, nothing to do
+				curmsg = nil
+				state = 1
+			} else {
+				// Invalid cmd
+				if _, e := conn.Write([]byte("INVALID\r\n")); e != nil {
+					log.Printf("queue.handle(CHAN) e=%s", e.Error())
+				}
 				break
 			}
 		}
+	}
+
+	if state == 2 {
+		// processing failed
+		requeue[channel] <- *curmsg
 	}
 }

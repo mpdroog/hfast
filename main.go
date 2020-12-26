@@ -12,6 +12,7 @@ import (
 	"github.com/mpdroog/hfast/handlers"
 	"github.com/mpdroog/hfast/logger"
 	"github.com/mpdroog/hfast/proxy"
+	"github.com/mpdroog/hfast/queue"
 	"github.com/mpdroog/ratelimit"
 	"github.com/mpdroog/ratelimit/memory"
 	"golang.org/x/crypto/acme/autocert"
@@ -175,6 +176,7 @@ func main() {
 		"weak":     true,
 		"indexphp": true,
 	}
+	useQueues := false
 
 	for _, domain := range domains {
 		fname := fmt.Sprintf(config.Webdir+"/%s/override.toml", domain)
@@ -232,6 +234,14 @@ func main() {
 		limit := ratelimit.Request(ratelimit.IP).Rate(30, time.Minute).LimitBy(memory.NewLimited(1000)) // 30req/min
 
 		mux := &http.ServeMux{}
+		if len(override.SecretKey) > 0 {
+			if e := queue.Init(); e != nil {
+				panic(e)
+			}
+			useQueues = true
+			mux.Handle("/queue/", handlers.AccessLog(queue.Handle()))
+		}
+
 		// Add /admin-path for mgmt
 		if len(override.Admin) > 0 {
 			admin := gziphandler.GzipHandler(NewHandler(fmt.Sprintf(config.Webdir+"/%s/admin/index.php", domain), "tcp", config.PHP_FPM))
@@ -281,6 +291,21 @@ func main() {
 		httpServer  *http.Server
 		httpsServer *http.Server
 	)
+
+	if useQueues {
+		wg.Add(1)
+		fn, e := queue.Serve(queue.WORKER_LISTEN)
+		if e != nil {
+			panic(fmt.Sprintf("queue.Serve e=%s\n", e.Error()))
+		}
+
+		go func() {
+			if e := fn(); e != nil {
+				fmt.Printf("queue.Serve e=" + e.Error())
+			}
+			wg.Done()
+		}()
+	}
 
 	// :80
 	wg.Add(1)
@@ -386,6 +411,8 @@ func main() {
 		if e := httpsServer.Shutdown(ctx); e != nil {
 			panic(e)
 		}
+
+		queue.Listen.Close()
 	}()
 
 	sent, e := daemon.SdNotify(false, "READY=1")

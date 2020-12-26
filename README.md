@@ -17,6 +17,8 @@ Why?
 - Native support for pre-optimized content. Let Brotli/Zopfli pre-compress assets
  to `.br`/`.gz` and HFast will serve them
 - Accesslog as JSON for easy parsing
+- Dynamic queues to easily queue data to the site without
+ worrying about losing data on bugs in your code
 
 How?
 - You need to place files in the pre-defined project structure

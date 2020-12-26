@@ -18,17 +18,21 @@ package queue
 import (
 	"crypto/md5"
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
 	"github.com/boltdb/bolt"
+	"github.com/mpdroog/hfast/config"
+	"github.com/mpdroog/hfast/logger"
 	"net/http"
 	"strings"
 	"sync"
+	"net/http/httputil"
 )
 
 var (
 	db    *bolt.DB
+	dbPath string = "/var/hfast.db"
 	state *sync.Map
+	isLoaded bool
 )
 
 type Job struct {
@@ -36,14 +40,19 @@ type Job struct {
 }
 
 func Init() error {
+	if isLoaded {
+		return nil
+	}
 	state = new(sync.Map)
 
-	db, err := bolt.Open("/var/hfast.db", 0600, nil)
+	var err error
+	db, err = bolt.Open(dbPath, 0600, nil)
 	if err != nil {
 		return err
 	}
 
-	return db.View(func(tx *bolt.Tx) error {
+	// Load entries in the queue
+	e := db.Update(func(tx *bolt.Tx) error {
 		b, err := tx.CreateBucketIfNotExists([]byte("queue"))
 		if err != nil {
 			return fmt.Errorf("create bucket: %s", err)
@@ -51,98 +60,121 @@ func Init() error {
 
 		c := b.Cursor()
 		for k, v := c.First(); k != nil; k, v = c.Next() {
-			fmt.Printf("key=%s, value=%s\n", k, v)
+			if config.Verbose {
+				fmt.Printf("queue.pending key=%s, value=%s\n", k, v)
+			}
 			if v != nil {
 				return fmt.Errorf("bucket has values? val: %s", k)
 			}
 
 			cs := tx.Bucket(k).Cursor()
 			for k, _ := cs.First(); k != nil; k, _ = cs.Next() {
+				if _, ok := queue[string(v)]; !ok {
+					queue[string(v)] = make(chan Msg, 500)
+				}
 				queue[string(v)] <- Msg{Id: k}
 			}
 		}
-
-		// TODO: Fill state machines so we're in the state we were
-		//  before restart.
 		return nil
 	})
+	if e == nil {
+		isLoaded = true
+	}
+	if config.Verbose {
+		fmt.Println("queue.Init finished")
+	}
+	return e
 }
 
-func Req(w http.ResponseWriter, r *http.Request) {
-	// URL=/v1/url.json
-	toks := strings.SplitN(r.URL.Path, "/", 4)
-	if len(toks) != 4 {
-		w.WriteHeader(400)
-		w.Write([]byte("Invalid path, example=/queue/<channel>/MD5(secret+name)(.ok)\n"))
-		return
-	}
-
-	channel := toks[2]
-	hashArg := strings.SplitN(toks[3], ".", 2)
-	hash := hashArg[0]
-	expect := "SILENT"
-
-	if len(hashArg) > 1 {
-		expect = strings.ToLower(hashArg[1])
-		if expect != "ok" {
+// URL=/v1/url.json
+func Handle() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !isLoaded {
+			panic("DevErr: Init never called")
+		}
+		toks := strings.SplitN(r.URL.Path, "/", 4)
+		if len(toks) != 4 {
 			w.WriteHeader(400)
-			w.Write([]byte("Invalid return type, only .ok\n"))
+			w.Write([]byte("Invalid path, example=/queue/<channel>/MD5(<secretkey>+<channel>)(.ok)\n"))
 			return
 		}
-	}
 
-	/*
-		r.Header().Set("X-Domain", domain)
-		r.Header().Set("X-Secretkey", secretkey)
-	*/
-	domain := r.Header.Get("X-Domain")
-	secret := r.Header.Get("X-Secretkey")
+		channel := toks[2]
+		hashArg := strings.SplitN(toks[3], ".", 2)
+		hash := hashArg[0]
+		expect := "SILENT"
 
-	if secret == "" {
-		panic("Missing secret-key")
-	}
-	if hash != fmt.Sprintf("%x", md5.Sum([]byte(secret+channel))) {
-		w.WriteHeader(403)
-		w.Write([]byte("Invalid hash.\n"))
-		return
-	}
+		if len(hashArg) > 1 {
+			expect = strings.ToLower(hashArg[1])
+			if expect != "ok" {
+				w.WriteHeader(400)
+				w.Write([]byte("Invalid return type, only .ok\n"))
+				return
+			}
+		}
 
-	e := db.Update(func(tx *bolt.Tx) error {
-		b, e := tx.CreateBucketIfNotExists([]byte("queue"))
+		/*
+			r.Header().Set("X-Domain", domain)
+			r.Header().Set("X-Secretkey", secretkey)
+		*/
+		domain := r.Header.Get("X-Domain")
+		secret := r.Header.Get("X-Secretkey")
+
+		if secret == "" {
+			panic("Missing secret-key")
+		}
+		if hash != fmt.Sprintf("%x", md5.Sum([]byte(secret+channel))) {
+			w.WriteHeader(403)
+			w.Write([]byte("Invalid hash.\n"))
+			return
+		}
+
+		e := db.Update(func(tx *bolt.Tx) error {
+			b, e := tx.CreateBucketIfNotExists([]byte("queue"))
+			if e != nil {
+				return e
+			}
+
+			bucketName := domain + "_" + channel
+			bchan, e := b.CreateBucketIfNotExists([]byte(bucketName))
+			if e != nil {
+				return e
+			}
+
+			id, e := bchan.NextSequence()
+			if e != nil {
+				return e
+			}
+
+			req, e := httputil.DumpRequest(r, true)
+			if e != nil {
+				return e
+			}
+
+			idb := make([]byte, 8)
+			binary.LittleEndian.PutUint64(idb, id)
+			if e := bchan.Put(idb, req); e != nil {
+				return e
+			}
+
+			if config.Verbose {
+				fmt.Printf("queue.Handle(%s) id=%+v body=%+v\n", bucketName, id, string(req))
+			}
+			if _, ok := queue[bucketName]; !ok {
+				queue[bucketName] = make(chan Msg, 500)
+			}
+			queue[bucketName] <- Msg{Id: idb}
+			return nil
+		})
 		if e != nil {
-			return e
+			w.WriteHeader(500)
+			w.Write([]byte("Failed storing msg.\n"))
+			logger.Printf("queue.Handle e=%s\n", e.Error())
+			return
 		}
 
-		bucketName := domain + "_" + channel
-		bchan, e := b.CreateBucketIfNotExists([]byte(bucketName))
-		if e != nil {
-			return e
+		if expect == "ok" {
+			w.Write([]byte("OK"))
 		}
-
-		id, e := bchan.NextSequence()
-		if e != nil {
-			return e
-		}
-		req, e := json.Marshal(r)
-		if e != nil {
-			return e
-		}
-		idb := []byte{}
-		binary.LittleEndian.PutUint64(idb, id)
-		if e := bchan.Put(idb, req); e != nil {
-			return e
-		}
-
-		queue[bucketName] <- Msg{Id: idb}
-		return nil
 	})
-	if e != nil {
-		w.WriteHeader(500)
-		w.Write([]byte("Failed storing msg.\n"))
-		return
-	}
-
-	if expect == "ok" {
-		w.Write([]byte("OK"))
-	}
 }

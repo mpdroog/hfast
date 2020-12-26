@@ -23,6 +23,16 @@ func Vhost() http.HandlerFunc {
 			w.Write([]byte("ERR: No such site."))
 			return
 		}
+
+		cfg, ok := config.Overrides[r.Host]
+		if !ok {
+			panic("Host set in muxs but not on overrides?")
+		}
+
+		// Extend with some vars for use in hfast/queue
+		r.Header.Set("X-Domain", host)
+		r.Header.Set("X-Secretkey", cfg.SecretKey)
+
 		m.ServeHTTP(w, r)
 		// Strip off sensitive info
 		w.Header().Del("X-Powered-By")
