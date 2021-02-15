@@ -11,9 +11,9 @@ require (
 	github.com/mpdroog/ratelimit v0.0.0-20201006081641-7a8a9e4359a2
 	github.com/vulcand/oxy v1.1.0
 	github.com/yookoala/gofast v0.5.0
-	golang.org/x/crypto v0.0.0-20200709230013-948cd5f35899
-	golang.org/x/net v0.0.0-20201002202402-0a1ea396d57c
-	golang.org/x/text v0.3.3
+	golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad
+	golang.org/x/net v0.0.0-20210119194325-5f4716e94777
+	golang.org/x/text v0.3.5
 	gopkg.in/alexcesaro/quotedprintable.v2 v2.0.0-20150314193201-9b4a113f96b3 // indirect
 	gopkg.in/gomail.v1 v1.0.0-20150320132819-11b919ab4933
 )
