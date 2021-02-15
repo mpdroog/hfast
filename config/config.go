@@ -10,6 +10,7 @@ type Override struct {
 	ExcludedDomains []string
 	Lang            []string // Homepage auto-redirected languages
 	Admin           map[string]string // Admin user+pass
+	Pprof			bool      // Enable Golang PProf-backend to CPU/memory usage
 	DevMode         bool              // Only allow admin user+pass
 	Authlist        map[string]bool // IP Whitelist if devmode-on
 	SiteType        string // Site framework

@@ -18,6 +18,7 @@ import (
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/net/netutil"
 	"golang.org/x/text/language"
+	"net/http/pprof"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -246,6 +247,19 @@ func main() {
 		if len(override.Admin) > 0 {
 			admin := gziphandler.GzipHandler(NewHandler(fmt.Sprintf(config.Webdir+"/%s/admin/index.php", domain), "tcp", config.PHP_FPM))
 			mux.Handle("/admin/", handlers.BasicAuth(handlers.AccessLog(admin), "Backend", override.Admin, override.Authlist))
+		}
+
+		if override.Pprof {
+			if len(override.Admin) > 0 || len(override.Authlist) > 0 {
+				// Activate pprof on admin backend
+				mux.HandleFunc("/debug/pprof/", pprof.Index)
+				mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+				mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+				mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+				mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+			} else {
+				panic("Cannot enable pprof when admin-mode not enabled")
+			}
 		}
 
 		// Base-path to make PHP active
