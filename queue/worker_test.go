@@ -1,19 +1,19 @@
 package queue
 
 import (
-	"testing"
-	"os"
-	"net/http/httptest"
-	"crypto/md5"
-    "fmt"
-	"github.com/mpdroog/hfast/config"
-	"net"
-	"net/textproto"
 	"bufio"
-	"strings"
+	"crypto/md5"
+	"fmt"
+	"github.com/mpdroog/hfast/config"
 	"io"
 	"io/ioutil"
+	"net"
+	"net/http/httptest"
+	"net/textproto"
+	"os"
 	"strconv"
+	"strings"
+	"testing"
 )
 
 func TestWork(t *testing.T) {
@@ -43,8 +43,8 @@ func TestWork(t *testing.T) {
 
 	// Write task to queue
 	// /queue/<channel>/MD5(<secretkey>+<channel>)
-	secret := []byte("prjkey"+"test")
-    hash := fmt.Sprintf("%x", md5.Sum(secret))
+	secret := []byte("prjkey" + "test")
+	hash := fmt.Sprintf("%x", md5.Sum(secret))
 	req := httptest.NewRequest("POST", "/queue/test/"+hash, nil)
 	req.Header.Set("X-Domain", "test.com")
 	req.Header.Set("X-Secretkey", "prjkey")
@@ -127,7 +127,7 @@ func TestWork(t *testing.T) {
 	{
 		n, e := io.ReadFull(reader, p)
 		if e != nil {
-			t.Fatal(e)			
+			t.Fatal(e)
 		}
 		if n != bodyLen {
 			t.Fatal(fmt.Errorf("bodylen mismatch"))

@@ -17,14 +17,14 @@ package queue
 
 import (
 	"bufio"
+	"encoding/binary"
 	"fmt"
 	"github.com/boltdb/bolt"
+	"github.com/mpdroog/hfast/config"
 	"log"
 	"net"
 	"strings"
 	"time"
-	"github.com/mpdroog/hfast/config"
-	"encoding/binary"
 )
 
 type Msg struct {
@@ -46,7 +46,7 @@ func init() {
 	requeue = make(map[string]chan Msg)
 }
 
-func Serve(listen string) (func()error, error) {
+func Serve(listen string) (func() error, error) {
 	ln, e := net.Listen("tcp", listen)
 	if e != nil {
 		return nil, e
@@ -107,8 +107,8 @@ func handle(conn net.Conn) {
 			if tok[0] == "READY" {
 				var msg Msg
 				select {
-					case msg = <-requeue[channel]:
-					case msg = <-queue[channel]:
+				case msg = <-requeue[channel]:
+				case msg = <-queue[channel]:
 				}
 				if config.Verbose {
 					fmt.Printf("queue.handle(READY) msg=%+v\n", msg)

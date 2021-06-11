@@ -8,15 +8,15 @@ import (
 type Override struct {
 	Proxy           string // Reverse proxy to given http-address
 	ExcludedDomains []string
-	Lang            []string // Homepage auto-redirected languages
+	Lang            []string          // Homepage auto-redirected languages
 	Admin           map[string]string // Admin user+pass
-	Pprof			bool      // Enable Golang PProf-backend to CPU/memory usage
+	Pprof           bool              // Enable Golang PProf-backend to CPU/memory usage
 	DevMode         bool              // Only allow admin user+pass
-	Authlist        map[string]bool // IP Whitelist if devmode-on
-	SiteType        string // Site framework
-	Ratelimit       bool // Override (default on) ratelimiter on PHP-code
+	Authlist        map[string]bool   // IP Whitelist if devmode-on
+	SiteType        string            // Site framework
+	Ratelimit       bool              // Override (default on) ratelimiter on PHP-code
 
-	SecretKey       string // Secret key used for hashing queue's (needed to have queueing enabled)
+	SecretKey string // Secret key used for hashing queue's (needed to have queueing enabled)
 }
 
 const MAX_WORKERS = 50000        // max 50k go-routines per listener

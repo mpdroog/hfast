@@ -23,15 +23,15 @@ import (
 	"github.com/mpdroog/hfast/config"
 	"github.com/mpdroog/hfast/logger"
 	"net/http"
+	"net/http/httputil"
 	"strings"
 	"sync"
-	"net/http/httputil"
 )
 
 var (
-	db    *bolt.DB
-	dbPath string = "/var/hfast.db"
-	state *sync.Map
+	db       *bolt.DB
+	dbPath   string = "/var/hfast.db"
+	state    *sync.Map
 	isLoaded bool
 )
 
