@@ -29,6 +29,13 @@ func BasicAuth(h http.Handler, realm string, userpass map[string]string, authlis
 			return
 		}
 
+		if len(userpass) == 0 {
+			w.Header().Set("WWW-Authenticate", `Basic realm="`+realm+`"`)
+			w.WriteHeader(401)
+			w.Write([]byte("Unauthorised.\n"))
+			return
+		}
+
 		user, pass, ok := r.BasicAuth()
 		if !ok {
 			w.Header().Set("WWW-Authenticate", `Basic realm="`+realm+`"`)
@@ -37,14 +44,8 @@ func BasicAuth(h http.Handler, realm string, userpass map[string]string, authlis
 			return
 		}
 
-		valid := false
-		for username, password := range userpass {
-			if subtle.ConstantTimeCompare([]byte(user), []byte(username)) == 1 && subtle.ConstantTimeCompare([]byte(pass), []byte(password)) == 1 {
-				valid = true
-				break
-			}
-		}
-		if !valid {
+		cfgPass, ok := userpass[user]
+		if !ok || subtle.ConstantTimeCompare([]byte(pass), []byte(cfgPass)) != 1 {
 			w.Header().Set("WWW-Authenticate", `Basic realm="`+realm+`"`)
 			w.WriteHeader(401)
 			w.Write([]byte("Unauthorised.\n"))
