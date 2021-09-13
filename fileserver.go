@@ -198,6 +198,15 @@ func serveContent(w http.ResponseWriter, r *http.Request, name string, modtime t
 		w.Header().Set("Cache-Control", "no-cache,no-store,must-revalidate")
 	}
 
+	if strings.HasSuffix(r.URL.Path, ".css") ||
+	   strings.HasSuffix(r.URL.Path, ".js") ||
+	   strings.HasSuffix(r.URL.Path, ".png") ||
+	   strings.HasSuffix(r.URL.Path, ".gif") ||
+	   strings.HasSuffix(r.URL.Path, ".jpg") {
+		// Force browser to cache this one month
+		w.Header().Set("Cache-Control", "public,max-age=2678400")
+	}
+
 	// If Content-Type isn't set, use the file's extension to find it, but
 	// if the Content-Type is unset explicitly, do not sniff the type.
 	ctypes, haveType := w.Header()["Content-Type"]
