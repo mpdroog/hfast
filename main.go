@@ -273,11 +273,12 @@ func main() {
 		if !override.Ratelimit {
 			action = gziphandler.GzipHandler(php)
 		}
-		mux.Handle(path, handlers.AccessLog(action))
 
 		if override.DevMode {
+			mux.Handle(path, handlers.BasicAuth(handlers.AccessLog(action), "Backend", override.Admin, override.Authlist))
 			mux.Handle("/", handlers.BasicAuth(handlers.AccessLog(fs), "Backend", override.Admin, override.Authlist))
 		} else {
+			mux.Handle(path, handlers.AccessLog(action))
 			mux.Handle("/", handlers.AccessLog(fs))
 		}
 		config.Overrides[domain] = override
