@@ -4,12 +4,9 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-docker run --rm -v "$PWD":/go/src/deltajournal -w /go/src/deltajournal golang:1.11 bash -c "
-set -euo pipefail
-IFS=$'\n\t'
+docker run --rm -v "$PWD":/go/src/deltajournal -w /go/src/deltajournal golang:1.19 bash -c "
 /usr/bin/apt-get update
 apt-get install -y libsystemd-dev
 go get
 go build"
 
-scp deltajournal mark@192.168.178.44:~
