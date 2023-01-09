@@ -174,6 +174,10 @@ run:
 					unit = unit[0:strings.Index(unit, ".")]
 				}
 
+				if override, ok := config.C.Services["default"]; ok {
+					severity = override.Severity
+					filters = override.Filters
+				}
 				if override, ok := config.C.Services[unit]; ok {
 					severity = override.Severity
 					filters = override.Filters
@@ -223,8 +227,9 @@ run:
 				line := fmt.Sprintf("[%s!%d] %s", unit, prio, msg)
 				buf = append([]string{line}, buf...)
 				buflen += len(line)
-				if buflen > 1024*1024 {
-					// Exceed 1MB, just stop!
+
+				if buflen > 512*1024 {
+					// Exceed 512KB, just stop!
 					break
 				}
 			}
@@ -239,7 +244,7 @@ run:
 					cursor = lastCursor
 				} else {
 					if e := Email(config.C.Email, strings.Join(buf, "\n")); e != nil {
-						fmt.Printf("Email failed e=%s\n" + e.Error())
+						fmt.Printf("Email failed e=%s\n", e.Error())
 					} else {
 						// Only move to new cursor if up until last cursor was mailed
 						// else it will retry in the next run
