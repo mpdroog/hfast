@@ -93,11 +93,14 @@ func main() {
 		fmt.Printf("Config=%+v\n", config.C)
 	}
 
-	j, e := sdjournal.NewJournal()
-	if e != nil {
-		panic(e)
+	// Test the journal once
+	{
+		j, e := sdjournal.NewJournal()
+		if e != nil {
+			panic(e)
+		}
+		j.Close()
 	}
-	defer j.Close()
 
 	sigOS = make(chan os.Signal, 1)
 	signal.Notify(sigOS, os.Interrupt)
@@ -115,144 +118,33 @@ func main() {
 	// -------------------
 	// Strict-mode from here
 	// -------------------
-run:
+	save := false
+	cursor := ""
 	for {
-		var buf []string
-		buflen := 0
-
-		lastCursor, e := HasLog(j, cursor)
+		save = false
+		buf, lastCursor, e := ReadJournalLines(cursor)
 		if e != nil {
-			fmt.Printf("Journal.HasLog(%s)\n", e.Error())
+			fmt.Printf("ReadJournalLines e=%s\n", e.Error())
+		}
+		if len(buf) == 0 && lastCursor != "" {
+			cursor = lastCursor
+			save = true
 		}
 
-		// Reverse read till cursor of last run
-		if lastCursor != "" {
-			if e := j.SeekTail(); e != nil {
-				fmt.Printf("WARN: Journal.SeekTail e=%s\n", e.Error())
+		if len(buf) > 0 {
+			// We got something, MAIL IT
+			if e := Email(config.C.Email, strings.Join(buf, "\n")); e != nil {
+				fmt.Printf("Email failed e=%s\n", e.Error())
 				continue
-			}
-
-			for {
-				if verbose {
-					fmt.Printf("Journal.PreviousEntry\n")
-				}
-				if stop() {
-					break run
-				}
-				r, e := j.Previous()
-				if e != nil {
-					fmt.Printf("Journal.Previous(%s)\n", e.Error())
-					break
-				}
-				if r == 0 {
-					if verbose {
-						fmt.Printf("End-Of-Log\n")
-					}
-					break
-				}
-				d, e := j.GetEntry()
-				if e != nil {
-					fmt.Printf("WARN: Journal.GetEntry e=%s\n", e.Error())
-					break
-				}
-				if verbose {
-					fmt.Printf("Journal.Previous(seek=%s, cur=%s)\n", cursor, d.Cursor)
-				}
-				if d.Cursor == cursor {
-					// Done, we're at the position of last time
-					if verbose {
-						fmt.Printf("Reached cursor(%s) of last time.\n", cursor)
-					}
-					break
-				}
-				severity := 5
-				filters := []string{}
-
-				unit := d.Fields["_SYSTEMD_UNIT"]
-				if len(unit) > 0 {
-					// Strip off .service
-					unit = unit[0:strings.Index(unit, ".")]
-				}
-
-				if override, ok := config.C.Services["default"]; ok {
-					severity = override.Severity
-					filters = override.Filters
-				}
-				if override, ok := config.C.Services[unit]; ok {
-					severity = override.Severity
-					filters = override.Filters
-				}
-
-				var prio int
-				if d.Fields["PRIORITY"] == "" {
-					// We have no prio so make it severe
-					prio = severity
-				} else {
-					prio, e = strconv.Atoi(d.Fields["PRIORITY"])
-					if e != nil {
-						fmt.Printf("WARN: strconv.Atoi(%s) e=%s\n", d.Fields["PRIORITY"], e.Error())
-					}
-				}
-
-				if prio < severity {
-					if verbose {
-						fmt.Printf("IGNORE [%s!%d>=%d] %s\n", unit, prio, severity, d.Fields["MESSAGE"])
-					}
-					continue
-				}
-				// Filter messages out
-				skip := false
-				msg := strings.TrimSpace(d.Fields["MESSAGE"])
-				for _, filter := range filters {
-					m, e := filepath.Match(filter, msg)
-					if e != nil {
-						fmt.Printf("WARN: filepath.Match=%s\n", e.Error())
-					}
-					if verbose {
-						fmt.Printf("Match(%s <=> %s) = %t\n", filter, msg, m)
-					}
-					if m {
-						skip = true
-						break
-					}
-				}
-				if skip {
-					if verbose {
-						fmt.Printf("IGNORE [%s!%d>%d] %s\n", unit, prio, severity, msg)
-					}
-					continue
-				}
-
-				// https://www.freedesktop.org/software/systemd/man/systemd.journal-fields.html
-				line := fmt.Sprintf("[%s!%d] %s", unit, prio, msg)
-				buf = append([]string{line}, buf...)
-				buflen += len(line)
-
-				if buflen > 512*1024 {
-					// Exceed 512KB, just stop!
-					break
-				}
-			}
-
-			if len(buf) == 0 {
-				// Update cursor if we have nothing to mail
-				cursor = lastCursor
 			} else {
-				// We got something, MAIL IT
-				if readonly {
-					fmt.Println(strings.Join(buf, "\n"))
-					cursor = lastCursor
-				} else {
-					if e := Email(config.C.Email, strings.Join(buf, "\n")); e != nil {
-						fmt.Printf("Email failed e=%s\n", e.Error())
-					} else {
-						// Only move to new cursor if up until last cursor was mailed
-						// else it will retry in the next run
-						cursor = lastCursor
-					}
-				}
+				// Only move to new cursor if up until last cursor was mailed
+				// else it will retry in the next run
+				cursor = lastCursor
+				save = true
 			}
+		}
 
+		if save {
 			if verbose {
 				fmt.Printf("cursor.update(%s)=%s\n", stateFile, cursor)
 			}
@@ -264,7 +156,7 @@ run:
 		select {
 		case _ = <-sigOS:
 			// OS wants us dead
-			break run
+			break
 		case _ = <-ticker:
 			// Next run, move back to start of for
 		}
@@ -277,5 +169,131 @@ run:
 		fmt.Printf("WARN: stateFile.closeSave e=%s\n", e.Error())
 	}
 	os.Exit(0)
+}
 
+func ReadJournalLines(cursor string) ([]string, string, error) {
+	j, e := sdjournal.NewJournal()
+	if e != nil {
+		return nil, "", e
+	}
+	defer j.Close()
+
+	lastCursor, e := HasLog(j, cursor)
+	if e != nil {
+		return nil, "", e
+	}
+	if lastCursor == "" {
+		// Nothing here
+		return nil, "", nil
+	}
+
+	if e := j.SeekTail(); e != nil {
+		return nil, "", e
+	}
+
+	var buf []string
+	buflen := 0
+
+	// Collect the lines (max 1024)
+	for i := 0; i < 1024; i++ {
+		if verbose {
+			fmt.Printf("Journal.PreviousEntry\n")
+		}
+		if stop() {
+			return buf, "", nil
+		}
+		r, e := j.Previous()
+		if e != nil {
+			return nil, "", e
+		}
+		if r == 0 {
+			if verbose {
+				fmt.Printf("End-Of-Log\n")
+			}
+			break
+		}
+		d, e := j.GetEntry()
+		if e != nil {
+			return nil, "", e
+		}
+		if verbose {
+			fmt.Printf("Journal.Previous(seek=%s, cur=%s)\n", cursor, d.Cursor)
+		}
+		if d.Cursor == cursor {
+			// Done, we're at the position of last time
+			if verbose {
+				fmt.Printf("Reached cursor(%s) of last time.\n", cursor)
+			}
+			break
+		}
+		severity := 5
+		filters := []string{}
+
+		unit := d.Fields["_SYSTEMD_UNIT"]
+		if len(unit) > 0 {
+			// Strip off .service
+			unit = unit[0:strings.Index(unit, ".")]
+		}
+
+		if override, ok := config.C.Services["default"]; ok {
+			severity = override.Severity
+			filters = override.Filters
+		}
+		if override, ok := config.C.Services[unit]; ok {
+			severity = override.Severity
+			filters = override.Filters
+		}
+
+		var prio int
+		if d.Fields["PRIORITY"] == "" {
+			// We have no prio so make it severe
+			prio = severity
+		} else {
+			prio, e = strconv.Atoi(d.Fields["PRIORITY"])
+			if e != nil {
+				return nil, "", fmt.Errorf("WARN: strconv.Atoi(%s) e=%s\n", d.Fields["PRIORITY"], e.Error())
+			}
+		}
+
+		if prio < severity {
+			if verbose {
+				fmt.Printf("IGNORE [%s!%d>=%d] %s\n", unit, prio, severity, d.Fields["MESSAGE"])
+			}
+			continue
+		}
+		// Filter messages out
+		skip := false
+		msg := strings.TrimSpace(d.Fields["MESSAGE"])
+		for _, filter := range filters {
+			m, e := filepath.Match(filter, msg)
+			if e != nil {
+				fmt.Printf("WARN: filepath.Match=%s\n", e.Error())
+			}
+			if verbose {
+				fmt.Printf("Match(%s <=> %s) = %t\n", filter, msg, m)
+			}
+			if m {
+				skip = true
+				break
+			}
+		}
+		if skip {
+			if verbose {
+				fmt.Printf("IGNORE [%s!%d>%d] %s\n", unit, prio, severity, msg)
+			}
+			continue
+		}
+
+		// https://www.freedesktop.org/software/systemd/man/systemd.journal-fields.html
+		line := fmt.Sprintf("[%s!%d] %s", unit, prio, msg)
+		buf = append([]string{line}, buf...)
+		buflen += len(line)
+
+		if buflen > 512*1024 {
+			// Exceed 512KB, just stop!
+			break
+		}
+	}
+
+	return buf, lastCursor, nil
 }
