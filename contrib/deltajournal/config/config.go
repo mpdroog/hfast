@@ -30,8 +30,20 @@ type Config struct {
 }
 
 var (
-	C Config
+	C       Config
+	Verbose bool
+	Debug   bool
+	SigOS   chan os.Signal
 )
+
+func Stop() bool {
+	select {
+	case _ = <-SigOS:
+		return true
+	default:
+		return false
+	}
+}
 
 func Init(f string) error {
 	r, e := os.Open(f)

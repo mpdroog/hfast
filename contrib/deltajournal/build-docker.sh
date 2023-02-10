@@ -8,5 +8,6 @@ docker run --rm -v "$PWD":/go/src/deltajournal -w /go/src/deltajournal golang:1.
 /usr/bin/apt-get update
 apt-get install -y libsystemd-dev
 go get
+go test ./... -v
 go build"
 
