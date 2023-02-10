@@ -8,14 +8,15 @@ import (
 )
 
 type Email struct {
-	Host    string
-	Port    int
-	User    string
-	Pass    string
-	Display string
-	From    string
-	To      []string
-	Subject string
+	Host     string
+	Port     int
+	User     string
+	Pass     string
+	Display  string
+	From     string
+	To       []string
+	Subject  string
+	Insecure bool
 }
 type ServiceFilter struct {
 	Severity int

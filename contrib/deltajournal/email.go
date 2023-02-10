@@ -2,10 +2,11 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"deltajournal/config"
 	"fmt"
-	"gopkg.in/gomail.v1"
 	"github.com/mailgun/mailgun-go/v4"
+	"gopkg.in/gomail.v1"
 	"math/rand"
 	"time"
 )
@@ -47,7 +48,13 @@ func Email(e config.Email, body string) error {
 		msg.SetHeader("Subject", fmt.Sprintf("[%s] %s", host, e.Subject))
 		msg.SetBody("text/plain", body)
 
-		mailer := gomail.NewMailer(e.Host, e.User, e.Pass, e.Port)
+		cfg := gomail.SetTLSConfig(&tls.Config{ServerName: e.Host})
+		if e.Insecure {
+			cfg = gomail.SetTLSConfig(&tls.Config{InsecureSkipVerify: true})
+		}
+		auth := LoginAuth(e.User, e.Pass)
+
+		mailer := gomail.NewCustomMailer(fmt.Sprintf("%s:%d", e.Host, e.Port), auth, cfg)
 		return mailer.Send(msg)
 	}
 
