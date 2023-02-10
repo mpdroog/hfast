@@ -17,12 +17,14 @@ import (
 )
 
 var (
-	verbose   bool
-	readonly  bool
-	host      string
-	stateFile string
-	cursor    string
-	sigOS     chan os.Signal
+	verbose       bool
+	debug         bool
+	readonly      bool
+	host          string
+	stateFile     string
+	cursor        string
+	sigOS         chan os.Signal
+	ErrStopSignal = fmt.Errorf("ErrStopSignal")
 )
 
 func stop() bool {
@@ -66,6 +68,7 @@ func main() {
 	var e error
 	configPath := ""
 	flag.BoolVar(&verbose, "v", false, "Verbose-mode")
+	flag.BoolVar(&debug, "d", false, "Debug-mode")
 	flag.BoolVar(&readonly, "r", false, "Readonly-mode")
 	flag.StringVar(&configPath, "c", "./config.toml", "Path to config.json")
 	flag.StringVar(&stateFile, "s", "/tmp/deltaj.pos", "State position file")
@@ -123,6 +126,9 @@ func main() {
 	for {
 		save = false
 		buf, lastCursor, e := ReadJournalLines(cursor)
+		if e == ErrStopSignal {
+			break
+		}
 		if e != nil {
 			fmt.Printf("ReadJournalLines e=%s\n", e.Error())
 		}
@@ -136,12 +142,12 @@ func main() {
 			if e := Email(config.C.Email, strings.Join(buf, "\n")); e != nil {
 				fmt.Printf("Email failed e=%s\n", e.Error())
 				continue
-			} else {
-				// Only move to new cursor if up until last cursor was mailed
-				// else it will retry in the next run
-				cursor = lastCursor
-				save = true
 			}
+
+			// Only move to new cursor if up until last cursor was mailed
+			// else it will retry in the next run
+			cursor = lastCursor
+			save = true
 		}
 
 		if save {
@@ -153,6 +159,9 @@ func main() {
 			}
 		}
 
+		if verbose {
+			fmt.Printf("EOF (await CTRL+C/5min)\n")
+		}
 		select {
 		case _ = <-sigOS:
 			// OS wants us dead
@@ -200,7 +209,7 @@ func ReadJournalLines(cursor string) ([]string, string, error) {
 			fmt.Printf("Journal.PreviousEntry\n")
 		}
 		if stop() {
-			return buf, "", nil
+			return buf, "", ErrStopSignal
 		}
 		r, e := j.Previous()
 		if e != nil {
@@ -256,7 +265,7 @@ func ReadJournalLines(cursor string) ([]string, string, error) {
 		}
 
 		if prio < severity {
-			if verbose {
+			if debug {
 				fmt.Printf("IGNORE [%s!%d>=%d] %s\n", unit, prio, severity, d.Fields["MESSAGE"])
 			}
 			continue
@@ -269,7 +278,7 @@ func ReadJournalLines(cursor string) ([]string, string, error) {
 			if e != nil {
 				fmt.Printf("WARN: filepath.Match=%s\n", e.Error())
 			}
-			if verbose {
+			if debug {
 				fmt.Printf("Match(%s <=> %s) = %t\n", filter, msg, m)
 			}
 			if m {
@@ -278,7 +287,7 @@ func ReadJournalLines(cursor string) ([]string, string, error) {
 			}
 		}
 		if skip {
-			if verbose {
+			if debug {
 				fmt.Printf("IGNORE [%s!%d>%d] %s\n", unit, prio, severity, msg)
 			}
 			continue
