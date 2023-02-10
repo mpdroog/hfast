@@ -123,11 +123,12 @@ func main() {
 	// -------------------
 	save := false
 	cursor := ""
+L:
 	for {
 		save = false
 		buf, lastCursor, e := ReadJournalLines(cursor)
 		if e == ErrStopSignal {
-			break
+			break L
 		}
 		if e != nil {
 			fmt.Printf("ReadJournalLines e=%s\n", e.Error())
@@ -165,7 +166,7 @@ func main() {
 		select {
 		case _ = <-sigOS:
 			// OS wants us dead
-			break
+			break L
 		case _ = <-ticker:
 			// Next run, move back to start of for
 		}
