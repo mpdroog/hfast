@@ -74,15 +74,30 @@ func ReadLines(cursor string) ([]string, string, error) {
 		if len(unit) > 0 {
 			// Strip off .service
 			unit = unit[0:strings.Index(unit, ".")]
+			// Strip off @someid
+			unit, _, _ = strings.Cut(unit, "@")
 		}
 
 		if override, ok := config.C.Services["default"]; ok {
 			severity = override.Severity
 			filters = override.Filters
 		}
+		hasCustom := false
 		if override, ok := config.C.Services[unit]; ok {
 			severity = override.Severity
 			filters = override.Filters
+			hasCustom = true
+		}
+
+		if !hasCustom {
+			// Strip off -
+			subunit, _, _ := strings.Cut(unit, "-")
+			if override, ok := config.C.Services[subunit]; ok {
+				unit = subunit
+				severity = override.Severity
+				filters = override.Filters
+				hasCustom = true
+			}
 		}
 
 		var prio int
