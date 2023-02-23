@@ -13,8 +13,6 @@ require (
 	github.com/vulcand/oxy v1.3.0
 	github.com/yookoala/gofast v0.6.0
 	golang.org/x/crypto v0.0.0-20220321153916-2c7772ba3064
-	golang.org/x/net v0.0.0-20220225172249-27dd8689420f
-	golang.org/x/sys v0.0.0-20220319134239-a9b59b0215f8 // indirect
-	golang.org/x/text v0.3.7
-	golang.org/x/tools v0.1.10 // indirect
+	golang.org/x/net v0.0.0-20220722155237-a158d28d115b
+	golang.org/x/text v0.3.8
 )
