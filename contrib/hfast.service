@@ -1,14 +1,16 @@
 [Unit]
 Description=HTTPd Fast
 Requires=network.target
-After=network.target hfast.socket
-Requires=hfast.socket
+After=network.target
+PartOf=hfast.socket
 
 [Service]
 LimitNOFILE=8192
 Type=notify
-WatchdogSec=30s
 Restart=on-failure
+
+StandardOutput=journal
+StandardError=journal
 
 ExecStart=/var/www/hfast
 User=www-data
@@ -31,3 +33,4 @@ MemoryLimit=512M
 
 [Install]
 Also=hfast.socket
+WantedBy=multi-user.target

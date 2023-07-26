@@ -41,35 +41,35 @@ func main() {
 	// Socket/self activation
 	listeners := make(map[string]net.Listener)
 	{
-		haveHTTP := false
-		haveHTTPS := false
-
 		if !skipsysd {
-			activated, e := activation.Listeners()
+			activated, e := activation.ListenersWithNames()
 			if e != nil {
 				panic(e)
 			}
-			for _, addr := range activated {
-				if strings.HasSuffix(addr.Addr().String(), ":80") {
-					haveHTTP = true
-					listeners["HTTP"] = addr
-				} else if strings.HasSuffix(addr.Addr().String(), ":443") {
-					haveHTTPS = true
-					listeners["HTTPS"] = addr
+			fmt.Printf("Listeners=%+v\n", activated)
+			for name, addr := range activated {
+				if name == "http" {
+					// TODO: Lazy 0 as we assume only 1 listener..
+					listeners["HTTP"] = addr[0]
+				} else if name == "https" {
+					// TODO: Lazy 0 as we assume only 1 listener..
+					listeners["HTTPS"] = addr[0]
 				} else {
-					panic("Unsupported listener-addr=" + addr.Addr().String())
+					panic("Unsupported listener-addr=" + addr[0].Addr().String())
 				}
 			}
 		}
-
-		if !haveHTTP {
+	}
+	if len(listeners) == 0 {
+		// No listeners from systemd, do it ourselves
+		{
 			l, e := listener(":443")
 			if e != nil {
 				panic(e)
 			}
 			listeners["HTTPS"] = l
 		}
-		if !haveHTTPS {
+		{
 			l, e := listener(":80")
 			if e != nil {
 				panic(e)
@@ -236,91 +236,50 @@ func main() {
 	}
 
 	// :80
-	wg.Add(1)
-	go func() {
-		s := &http.Server{
-			Handler:      RecoverWrap(m.HTTPHandler(&handlers.RedirectHandler{})),
-			ReadTimeout:  5 * time.Second,
-			WriteTimeout: 10 * time.Second,
-			IdleTimeout:  15 * time.Second,
-			ErrorLog:     logger.Logger("@main.http-server: "),
-		}
-		httpServer = s
-		ln := listeners["HTTP"]
-		defer ln.Close()
-		if e := s.Serve(ln); e != nil && e != http.ErrServerClosed {
-			logger.Fatal(e)
-		}
-		wg.Done()
-	}()
+	if _, ok := listeners["HTTP"]; ok {
+		wg.Add(1)
+		go func() {
+			s := &http.Server{
+				Handler:      RecoverWrap(m.HTTPHandler(&handlers.RedirectHandler{})),
+				ReadTimeout:  5 * time.Second,
+				WriteTimeout: 10 * time.Second,
+				IdleTimeout:  15 * time.Second,
+				ErrorLog:     logger.Logger("@main.http-server: "),
+			}
+			httpServer = s
+			ln := listeners["HTTP"]
+			defer ln.Close()
+			if e := s.Serve(ln); e != nil && e != http.ErrServerClosed {
+				logger.Fatal(e)
+			}
+			wg.Done()
+		}()
+	}
 
 	// :443
-	wg.Add(1)
-	go func() {
-		s := &http.Server{
-			TLSConfig:    m.TLSConfig(),
-			Handler:      RecoverWrap(handlers.Vhost()),
-			ReadTimeout:  5 * time.Second,
-			WriteTimeout: 10 * time.Second,
-			IdleTimeout:  15 * time.Second,
-			ErrorLog:     logger.Logger("@main.https-server: "),
-		}
-		httpsServer = s
-		ln := listeners["HTTPS"]
-		defer ln.Close()
-		if e := s.ServeTLS(ln, "", ""); e != nil && e != http.ErrServerClosed {
-			panic(e)
-		}
-		wg.Done()
-	}()
+	if _, ok := listeners["HTTPS"]; ok {
+		wg.Add(1)
+		go func() {
+			s := &http.Server{
+				TLSConfig:    m.TLSConfig(),
+				Handler:      RecoverWrap(handlers.Vhost()),
+				ReadTimeout:  5 * time.Second,
+				WriteTimeout: 10 * time.Second,
+				IdleTimeout:  15 * time.Second,
+				ErrorLog:     logger.Logger("@main.https-server: "),
+			}
+			httpsServer = s
+			ln := listeners["HTTPS"]
+			defer ln.Close()
+			if e := s.ServeTLS(ln, "", ""); e != nil && e != http.ErrServerClosed {
+				panic(e)
+			}
+			wg.Done()
+		}()
+	}
 
 	// Below routines that quit with our custom channel
 	quit := make(chan os.Signal, 1)
-
-	// watchdog
-	go func() {
-		if skipsysd {
-			return
-		}
-		interval, e := daemon.SdWatchdogEnabled(false)
-		if e != nil || interval == 0 {
-			panic(e)
-		}
-		ticker := time.NewTicker(interval / 3)
-
-		tr := &http.Transport{
-			MaxIdleConns:    5,
-			IdleConnTimeout: 10 * time.Second,
-		}
-		client := &http.Client{Transport: tr}
-		addr := listeners["HTTP"].Addr().String()
-		port := addr[strings.LastIndex(addr, ":"):]
-		if config.Verbose {
-			fmt.Printf("ticker interval=%d addr=%s\n", interval/3, "http://127.0.0.1"+port)
-		}
-
-		for {
-			select {
-			case <-quit:
-				break
-			case <-ticker.C:
-				req, e := http.NewRequest("GET", "http://127.0.0.1"+port, nil)
-				if e != nil {
-					fmt.Printf("KeepAlive.err: %s\n", e.Error())
-				}
-				res, e := client.Do(req)
-				if e != nil {
-					fmt.Printf("KeepAlive.err: %s\n", e.Error())
-				} else {
-					res.Body.Close()
-					if config.Verbose {
-						fmt.Printf("watchdog.notify\n")
-					}
-					daemon.SdNotify(false, "WATCHDOG=1")
-				}
-			}
-		}
-	}()
 
 	// Graceful shutdown
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
@@ -331,13 +290,17 @@ func main() {
 			6*time.Second)
 		defer cancel()
 
-		httpServer.SetKeepAlivesEnabled(false)
-		httpsServer.SetKeepAlivesEnabled(false)
-		if e := httpServer.Shutdown(ctx); e != nil {
-			panic(e)
+		if httpServer != nil {
+			httpServer.SetKeepAlivesEnabled(false)
+			if e := httpServer.Shutdown(ctx); e != nil {
+				panic(e)
+			}
 		}
-		if e := httpsServer.Shutdown(ctx); e != nil {
-			panic(e)
+		if httpsServer != nil {
+			httpsServer.SetKeepAlivesEnabled(false)
+			if e := httpsServer.Shutdown(ctx); e != nil {
+				panic(e)
+			}
 		}
 
 		queue.Listen.Close()
