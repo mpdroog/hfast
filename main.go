@@ -96,7 +96,6 @@ func main() {
 	// Lookup valid site types
 	siteTypes := map[string]bool{
 		"":         true,
-		"amp":      true,
 		"weak":     true,
 		"indexphp": true,
 	}
@@ -206,9 +205,6 @@ func main() {
 		}
 		config.Overrides[domain] = override
 		config.Muxs[domain] = handlers.SecureWrapper(mux)
-		if override.SiteType == "amp" {
-			config.Muxs[domain] = handlers.CORS(config.Muxs[domain])
-		}
 	}
 	domains = append(domains, wwwDomains...)
 
