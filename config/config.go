@@ -23,17 +23,15 @@ const MAX_WORKERS = 50000        // max 50k go-routines per listener
 const PHP_FPM = "127.0.0.1:8000" // default FPM path
 
 var (
-	PushAssets map[string][]string
-	Muxs       map[string]http.Handler
-	Langs      map[string]language.Matcher
-	Overrides  map[string]Override
+	Muxs      map[string]http.Handler
+	Langs     map[string]language.Matcher
+	Overrides map[string]Override
 
 	Verbose bool
 	Webdir  string
 )
 
 func init() {
-	PushAssets = make(map[string][]string)
 	Muxs = make(map[string]http.Handler)
 	Langs = make(map[string]language.Matcher)
 	Overrides = make(map[string]Override)

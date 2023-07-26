@@ -59,26 +59,6 @@ func exists(path string) (bool, error) {
 	return true, err
 }
 
-func getPush(path string) ([]string, error) {
-	ok, err := exists(path)
-	if err != nil || !ok {
-		return nil, err
-	}
-
-	fileInfo, err := ioutil.ReadDir(path)
-	if err != nil {
-		return nil, err
-	}
-
-	out := []string{}
-	for _, file := range fileInfo {
-		if file.IsDir() {
-			out = append(out, file.Name())
-		}
-	}
-	return out, nil
-}
-
 func getOverride(path string) (config.Override, error) {
 	c := config.Override{}
 
@@ -231,7 +211,7 @@ func main() {
 		}
 
 		// Serve pub-dir and add ratelimiter
-		fs := handlers.Push(FileServer(Dir(fmt.Sprintf(config.Webdir+"/%s/pub", domain))))
+		fs := FileServer(Dir(fmt.Sprintf(config.Webdir+"/%s/pub", domain)))
 		limit := ratelimit.Request(ratelimit.IP).Rate(30, time.Minute).LimitBy(memory.NewLimited(1000)) // 30req/min
 
 		mux := &http.ServeMux{}
@@ -286,12 +266,6 @@ func main() {
 		if override.SiteType == "amp" {
 			config.Muxs[domain] = handlers.CORS(config.Muxs[domain])
 		}
-
-		a, e := getPush(fmt.Sprintf(config.Webdir+"/%s/pub/push", domain))
-		if e != nil {
-			panic(e)
-		}
-		config.PushAssets[domain] = a
 	}
 	domains = append(domains, wwwDomains...)
 

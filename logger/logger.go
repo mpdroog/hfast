@@ -1,9 +1,5 @@
-// package logger implements a small log abstraction
-// Why yet another logger?
-// Because I wanted a descent log filter
-// What I came up with:
-// Only log todo's and allow strict filtering by prefixing funcs
-// @package.func: logmsg
+// package logger implements a small logger that writes the last func
+// for easier debugging
 package logger
 
 import (

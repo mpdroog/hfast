@@ -11,9 +11,12 @@ import (
 //
 // docroot: the document root of the PHP site.
 // network: network protocol (tcp / tcp4 / tcp6)
-//          or if it is a unix socket, "unix"
+//
+//	or if it is a unix socket, "unix"
+//
 // address: IP address and port, or the socket physical address of the fastcgi
-//          application.
+//
+//	application.
 func NewHandler(docroot, network, address string) http.Handler {
 	connFactory := gofast.SimpleConnFactory("tcp", address)
 
