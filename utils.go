@@ -56,6 +56,10 @@ func getOverride(path string) (config.Override, error) {
 	return c, e
 }
 
+func limit(aln net.Listener) net.Listener {
+	return netutil.LimitListener(aln, config.MAX_WORKERS)
+}
+
 func listener(addr string) (net.Listener, error) {
 	ln, e := net.Listen("tcp", addr)
 	if e != nil {

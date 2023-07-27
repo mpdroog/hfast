@@ -50,10 +50,10 @@ func main() {
 			for name, addr := range activated {
 				if name == "http" {
 					// TODO: Lazy 0 as we assume only 1 listener..
-					listeners["HTTP"] = addr[0]
+					listeners["HTTP"] = limit(addr[0])
 				} else if name == "https" {
 					// TODO: Lazy 0 as we assume only 1 listener..
-					listeners["HTTPS"] = addr[0]
+					listeners["HTTPS"] = limit(addr[0])
 				} else {
 					panic("Unsupported listener-addr=" + addr[0].Addr().String())
 				}
