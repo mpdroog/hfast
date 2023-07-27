@@ -6,6 +6,8 @@
 // Diff compared to original:
 // - Directory listing always returns forbidden
 // - Reject requests containig dot (i.e. .git .htaccess etc..)
+// - Static assets (.gif .jpg etc) automatically get Cache-Control header
+// - If file.gz or file.bz exists serve that as file
 //
 // HTTP file system http.Request handler
 
