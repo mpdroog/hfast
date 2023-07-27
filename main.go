@@ -161,6 +161,11 @@ func main() {
 			if e := queue.Init(); e != nil {
 				panic(e)
 			}
+			defer func() {
+				if e := queue.Close(); e != nil {
+					fmt.Printf("queue.Close e=%s\n", e.Error())
+				}
+			}()
 			useQueues = true
 			mux.Handle("/queue/", handlers.AccessLog(queue.Handle()))
 		}
@@ -174,6 +179,7 @@ func main() {
 		if override.Pprof {
 			if len(override.Admin) > 0 || len(override.Authlist) > 0 {
 				// Activate pprof on admin backend
+				// TODO: no base auth in front of it?
 				mux.HandleFunc("/debug/pprof/", pprof.Index)
 				mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
 				mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
@@ -196,19 +202,21 @@ func main() {
 			action = gziphandler.GzipHandler(php)
 		}
 
+		action = handlers.AccessLog(action)
+		base := handlers.AccessLog(fs)
 		if override.DevMode {
-			mux.Handle(path, handlers.BasicAuth(handlers.AccessLog(action), "Backend", override.Admin, override.Authlist))
-			mux.Handle("/", handlers.BasicAuth(handlers.AccessLog(fs), "Backend", override.Admin, override.Authlist))
-		} else {
-			mux.Handle(path, handlers.AccessLog(action))
-			mux.Handle("/", handlers.AccessLog(fs))
+			action = handlers.BasicAuth(action, "Backend", override.Admin, override.Authlist)
+			base = handlers.BasicAuth(base, "Backend", override.Admin, override.Authlist)
 		}
+
+		mux.Handle(path, action)
+		mux.Handle("/", base)
+
 		config.Overrides[domain] = override
 		config.Muxs[domain] = handlers.SecureWrapper(mux)
 	}
 	domains = append(domains, wwwDomains...)
 
-	// Add www-prefix
 	m := &autocert.Manager{
 		Cache:      autocert.DirCache("/tmp/certs"),
 		Prompt:     autocert.AcceptTOS,
@@ -303,7 +311,11 @@ func main() {
 			}
 		}
 
-		queue.Listen.Close()
+		if useQueues {
+			if e := queue.Listen.Close(); e != nil {
+				fmt.Printf("queue.Listen.Close e=%s\n", e.Error())
+			}
+		}
 	}()
 
 	sent, e := daemon.SdNotify(false, "READY=1")
