@@ -19,7 +19,6 @@ const (
 	xssProtectionHeader = "X-XSS-Protection"
 	xssProtectionValue  = "1; mode=block"
 	cspHeader           = "Content-Security-Policy"
-	cspAMP              = "default-src * data: blob:; script-src blob: https://cdn.ampproject.org/v0.js https://cdn.ampproject.org/v0/ https://cdn.ampproject.org/viewer/ https://cdn.ampproject.org/rtv/; object-src 'none'; style-src 'unsafe-inline' https://cdn.ampproject.org/rtv/ https://cdn.materialdesignicons.com https://cloud.typography.com https://fast.fonts.net https://fonts.googleapis.com https://maxcdn.bootstrapcdn.com https://p.typekit.net https://use.fontawesome.com https://use.typekit.net"
 
 	featurePolicyHeader = "Feature-Policy"
 	featurePolicyValue  = "vibrate 'none'; geolocation 'none'; camera 'none'; document-domain 'none'; microphone 'none'"
@@ -35,8 +34,6 @@ func sec(domains []string, appMode string) map[string]string {
 	responseHeader[featurePolicyHeader] = featurePolicyValue
 	if appMode == "" {
 		responseHeader[cspHeader] = fmt.Sprintf("default-src 'self' %s", strings.Join(domains, " "))
-	} else if appMode == "amp" {
-		responseHeader[cspHeader] = cspAMP
 	}
 	return responseHeader
 }
