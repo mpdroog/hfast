@@ -1,0 +1,60 @@
+# Example config from one of my production servers (Ubuntu Server)
+# to ignore system messages but report all other deviations
+# (FYI. In this config I log SSH sessions)
+Ticker = "5m"
+
+[Email]
+Host = "mail.example.com"
+Port = 465
+User = "user@example.com"
+Pass = "password"
+Display = "Robot"
+From = "user@example.com"
+To = ["developers@example.com"]
+Subject = "Journald diff"
+Insecure=true
+
+# https://en.wikipedia.org/wiki/Syslog#Severity_level
+# Default is the rules used when service-name does not match any in this config
+[Services.default]
+severity = 5
+filters = ["php/sessionclean", "e2scrub_all", "run-parts --report", "debug: "]
+
+[Services.fstrim]
+severity = 7
+[Services.user]
+severity = 7
+[Services.cron]
+severity = 7
+[Services.init]
+severity = 7
+[Services.session]
+severity = 7
+[Services.containerd]
+severity = 5
+filters = ["level=info", "level=warning"]
+[Services.packagekit]
+severity = 5
+filters = ["daemon quit", "daemon start"]
+
+[Services.systemd-logind]
+severity = 5
+filters = ["Removed session"]
+[Services.ssh]
+severity = 5
+filters = ["pam_unix", "Accepted publickey"]
+
+[Services.docker]
+severity = 5
+filters = ["ignoring event", "already in progress"]
+
+[Services.puppet]
+severity = 5
+filters = ["Applied catalog"]
+
+[Services.dbus]
+severity = 7
+
+[Services.hfast]
+severity = 5
+filters = ["Unmatched host:", "TLS handshake error", "URL query contains semicolon, which is no longer a supported separator", "gofast: no headers", "gofast: timeout or canceled", "server: error reading preface from client"]
