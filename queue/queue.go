@@ -25,13 +25,11 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"strings"
-	"sync"
 )
 
 var (
 	db       *bolt.DB
 	dbPath   string = "/var/hfast.db"
-	state    *sync.Map
 	isLoaded bool
 )
 
@@ -43,7 +41,6 @@ func Init() error {
 	if isLoaded {
 		return nil
 	}
-	state = new(sync.Map)
 
 	var err error
 	db, err = bolt.Open(dbPath, 0600, nil)
@@ -84,6 +81,15 @@ func Init() error {
 		fmt.Println("queue.Init finished")
 	}
 	return e
+}
+
+// Close db and listeners
+func Close() error {
+	if e := db.Close(); e != nil {
+		return e
+	}
+	db = nil
+	return nil
 }
 
 // URL=/v1/url.json

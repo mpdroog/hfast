@@ -11,7 +11,7 @@ To = ["you@yourcompany.com"]
 Subject = "Journald diff"
 Insecure=false
 
-https://en.wikipedia.org/wiki/Syslog#Severity_level
+# https://en.wikipedia.org/wiki/Syslog#Severity_level
 [Services.hfast]
 severity = 7
 # https://golang.org/pkg/path/filepath/#Match

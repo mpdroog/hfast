@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/BurntSushi/toml"
 	"github.com/NYTimes/gziphandler"
 	"github.com/coreos/go-systemd/activation"
 	"github.com/coreos/go-systemd/daemon"
@@ -16,9 +15,7 @@ import (
 	"github.com/mpdroog/ratelimit"
 	"github.com/mpdroog/ratelimit/memory"
 	"golang.org/x/crypto/acme/autocert"
-	"golang.org/x/net/netutil"
 	"golang.org/x/text/language"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/pprof"
@@ -29,80 +26,6 @@ import (
 	"syscall"
 	"time"
 )
-
-func getDomains() ([]string, error) {
-	fileInfo, err := ioutil.ReadDir(config.Webdir)
-	if err != nil {
-		return nil, err
-	}
-
-	out := []string{}
-	for _, file := range fileInfo {
-		if file.IsDir() {
-			if strings.ToLower(file.Name()) != file.Name() {
-				return nil, fmt.Errorf(config.Webdir + file.Name() + " not lowercase!")
-			}
-			out = append(out, file.Name())
-		}
-	}
-	return out, nil
-}
-
-func exists(path string) (bool, error) {
-	_, err := os.Stat(path)
-	if err == nil {
-		return true, nil
-	}
-	if os.IsNotExist(err) {
-		return false, nil
-	}
-	return true, err
-}
-
-func getPush(path string) ([]string, error) {
-	ok, err := exists(path)
-	if err != nil || !ok {
-		return nil, err
-	}
-
-	fileInfo, err := ioutil.ReadDir(path)
-	if err != nil {
-		return nil, err
-	}
-
-	out := []string{}
-	for _, file := range fileInfo {
-		if file.IsDir() {
-			out = append(out, file.Name())
-		}
-	}
-	return out, nil
-}
-
-func getOverride(path string) (config.Override, error) {
-	c := config.Override{}
-
-	if _, e := os.Stat(path); os.IsNotExist(e) {
-		return c, nil
-	}
-
-	r, e := os.Open(path)
-	if e != nil {
-		return c, e
-	}
-	defer r.Close()
-	_, e = toml.DecodeReader(r, &c)
-	return c, e
-}
-
-func listener(addr string) (net.Listener, error) {
-	ln, e := net.Listen("tcp", addr)
-	if e != nil {
-		return nil, e
-	}
-	aln := TCPKeepAliveListener{ln.(*net.TCPListener)}
-	return netutil.LimitListener(aln, config.MAX_WORKERS), nil
-}
 
 func main() {
 	skipsysd := false
@@ -118,35 +41,35 @@ func main() {
 	// Socket/self activation
 	listeners := make(map[string]net.Listener)
 	{
-		haveHTTP := false
-		haveHTTPS := false
-
 		if !skipsysd {
-			activated, e := activation.Listeners()
+			activated, e := activation.ListenersWithNames()
 			if e != nil {
 				panic(e)
 			}
-			for _, addr := range activated {
-				if strings.HasSuffix(addr.Addr().String(), ":80") {
-					haveHTTP = true
-					listeners["HTTP"] = addr
-				} else if strings.HasSuffix(addr.Addr().String(), ":443") {
-					haveHTTPS = true
-					listeners["HTTPS"] = addr
+			fmt.Printf("Listeners=%+v\n", activated)
+			for name, addr := range activated {
+				if name == "http" {
+					// TODO: Lazy 0 as we assume only 1 listener..
+					listeners["HTTP"] = limit(addr[0])
+				} else if name == "https" {
+					// TODO: Lazy 0 as we assume only 1 listener..
+					listeners["HTTPS"] = limit(addr[0])
 				} else {
-					panic("Unsupported listener-addr=" + addr.Addr().String())
+					panic("Unsupported listener-addr=" + addr[0].Addr().String())
 				}
 			}
 		}
-
-		if !haveHTTP {
+	}
+	if len(listeners) == 0 {
+		// No listeners from systemd, do it ourselves
+		{
 			l, e := listener(":443")
 			if e != nil {
 				panic(e)
 			}
 			listeners["HTTPS"] = l
 		}
-		if !haveHTTPS {
+		{
 			l, e := listener(":80")
 			if e != nil {
 				panic(e)
@@ -173,7 +96,6 @@ func main() {
 	// Lookup valid site types
 	siteTypes := map[string]bool{
 		"":         true,
-		"amp":      true,
 		"weak":     true,
 		"indexphp": true,
 	}
@@ -231,7 +153,7 @@ func main() {
 		}
 
 		// Serve pub-dir and add ratelimiter
-		fs := handlers.Push(FileServer(Dir(fmt.Sprintf(config.Webdir+"/%s/pub", domain))))
+		fs := FileServer(Dir(fmt.Sprintf(config.Webdir+"/%s/pub", domain)))
 		limit := ratelimit.Request(ratelimit.IP).Rate(30, time.Minute).LimitBy(memory.NewLimited(1000)) // 30req/min
 
 		mux := &http.ServeMux{}
@@ -239,6 +161,11 @@ func main() {
 			if e := queue.Init(); e != nil {
 				panic(e)
 			}
+			defer func() {
+				if e := queue.Close(); e != nil {
+					fmt.Printf("queue.Close e=%s\n", e.Error())
+				}
+			}()
 			useQueues = true
 			mux.Handle("/queue/", handlers.AccessLog(queue.Handle()))
 		}
@@ -252,6 +179,7 @@ func main() {
 		if override.Pprof {
 			if len(override.Admin) > 0 || len(override.Authlist) > 0 {
 				// Activate pprof on admin backend
+				// TODO: no base auth in front of it?
 				mux.HandleFunc("/debug/pprof/", pprof.Index)
 				mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
 				mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
@@ -274,28 +202,21 @@ func main() {
 			action = gziphandler.GzipHandler(php)
 		}
 
+		action = handlers.AccessLog(action)
+		base := handlers.AccessLog(fs)
 		if override.DevMode {
-			mux.Handle(path, handlers.BasicAuth(handlers.AccessLog(action), "Backend", override.Admin, override.Authlist))
-			mux.Handle("/", handlers.BasicAuth(handlers.AccessLog(fs), "Backend", override.Admin, override.Authlist))
-		} else {
-			mux.Handle(path, handlers.AccessLog(action))
-			mux.Handle("/", handlers.AccessLog(fs))
-		}
-		config.Overrides[domain] = override
-		config.Muxs[domain] = handlers.SecureWrapper(mux)
-		if override.SiteType == "amp" {
-			config.Muxs[domain] = handlers.CORS(config.Muxs[domain])
+			action = handlers.BasicAuth(action, "Backend", override.Admin, override.Authlist)
+			base = handlers.BasicAuth(base, "Backend", override.Admin, override.Authlist)
 		}
 
-		a, e := getPush(fmt.Sprintf(config.Webdir+"/%s/pub/push", domain))
-		if e != nil {
-			panic(e)
-		}
-		config.PushAssets[domain] = a
+		mux.Handle(path, action)
+		mux.Handle("/", base)
+
+		config.Overrides[domain] = override
+		config.Muxs[domain] = handlers.SecureWrapper(mux)
 	}
 	domains = append(domains, wwwDomains...)
 
-	// Add www-prefix
 	m := &autocert.Manager{
 		Cache:      autocert.DirCache("/tmp/certs"),
 		Prompt:     autocert.AcceptTOS,
@@ -323,91 +244,50 @@ func main() {
 	}
 
 	// :80
-	wg.Add(1)
-	go func() {
-		s := &http.Server{
-			Handler:      RecoverWrap(m.HTTPHandler(&handlers.RedirectHandler{})),
-			ReadTimeout:  5 * time.Second,
-			WriteTimeout: 10 * time.Second,
-			IdleTimeout:  15 * time.Second,
-			ErrorLog:     logger.Logger("@main.http-server: "),
-		}
-		httpServer = s
-		ln := listeners["HTTP"]
-		defer ln.Close()
-		if e := s.Serve(ln); e != nil && e != http.ErrServerClosed {
-			logger.Fatal(e)
-		}
-		wg.Done()
-	}()
+	if _, ok := listeners["HTTP"]; ok {
+		wg.Add(1)
+		go func() {
+			s := &http.Server{
+				Handler:      RecoverWrap(m.HTTPHandler(&handlers.RedirectHandler{})),
+				ReadTimeout:  5 * time.Second,
+				WriteTimeout: 10 * time.Second,
+				IdleTimeout:  15 * time.Second,
+				ErrorLog:     logger.Logger("@main.http-server: "),
+			}
+			httpServer = s
+			ln := listeners["HTTP"]
+			defer ln.Close()
+			if e := s.Serve(ln); e != nil && e != http.ErrServerClosed {
+				logger.Fatal(e)
+			}
+			wg.Done()
+		}()
+	}
 
 	// :443
-	wg.Add(1)
-	go func() {
-		s := &http.Server{
-			TLSConfig:    m.TLSConfig(),
-			Handler:      RecoverWrap(handlers.Vhost()),
-			ReadTimeout:  5 * time.Second,
-			WriteTimeout: 10 * time.Second,
-			IdleTimeout:  15 * time.Second,
-			ErrorLog:     logger.Logger("@main.https-server: "),
-		}
-		httpsServer = s
-		ln := listeners["HTTPS"]
-		defer ln.Close()
-		if e := s.ServeTLS(ln, "", ""); e != nil && e != http.ErrServerClosed {
-			panic(e)
-		}
-		wg.Done()
-	}()
+	if _, ok := listeners["HTTPS"]; ok {
+		wg.Add(1)
+		go func() {
+			s := &http.Server{
+				TLSConfig:    m.TLSConfig(),
+				Handler:      RecoverWrap(handlers.Vhost()),
+				ReadTimeout:  5 * time.Second,
+				WriteTimeout: 10 * time.Second,
+				IdleTimeout:  15 * time.Second,
+				ErrorLog:     logger.Logger("@main.https-server: "),
+			}
+			httpsServer = s
+			ln := listeners["HTTPS"]
+			defer ln.Close()
+			if e := s.ServeTLS(ln, "", ""); e != nil && e != http.ErrServerClosed {
+				panic(e)
+			}
+			wg.Done()
+		}()
+	}
 
 	// Below routines that quit with our custom channel
 	quit := make(chan os.Signal, 1)
-
-	// watchdog
-	go func() {
-		if skipsysd {
-			return
-		}
-		interval, e := daemon.SdWatchdogEnabled(false)
-		if e != nil || interval == 0 {
-			panic(e)
-		}
-		ticker := time.NewTicker(interval / 3)
-
-		tr := &http.Transport{
-			MaxIdleConns:    5,
-			IdleConnTimeout: 10 * time.Second,
-		}
-		client := &http.Client{Transport: tr}
-		addr := listeners["HTTP"].Addr().String()
-		port := addr[strings.LastIndex(addr, ":"):]
-		if config.Verbose {
-			fmt.Printf("ticker interval=%d addr=%s\n", interval/3, "http://127.0.0.1"+port)
-		}
-
-		for {
-			select {
-			case <-quit:
-				break
-			case <-ticker.C:
-				req, e := http.NewRequest("GET", "http://127.0.0.1"+port, nil)
-				if e != nil {
-					fmt.Printf("KeepAlive.err: %s\n", e.Error())
-				}
-				res, e := client.Do(req)
-				if e != nil {
-					fmt.Printf("KeepAlive.err: %s\n", e.Error())
-				} else {
-					res.Body.Close()
-					if config.Verbose {
-						fmt.Printf("watchdog.notify\n")
-					}
-					daemon.SdNotify(false, "WATCHDOG=1")
-				}
-			}
-		}
-	}()
 
 	// Graceful shutdown
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
@@ -418,16 +298,24 @@ func main() {
 			6*time.Second)
 		defer cancel()
 
-		httpServer.SetKeepAlivesEnabled(false)
-		httpsServer.SetKeepAlivesEnabled(false)
-		if e := httpServer.Shutdown(ctx); e != nil {
-			panic(e)
+		if httpServer != nil {
+			httpServer.SetKeepAlivesEnabled(false)
+			if e := httpServer.Shutdown(ctx); e != nil {
+				panic(e)
+			}
 		}
-		if e := httpsServer.Shutdown(ctx); e != nil {
-			panic(e)
+		if httpsServer != nil {
+			httpsServer.SetKeepAlivesEnabled(false)
+			if e := httpsServer.Shutdown(ctx); e != nil {
+				panic(e)
+			}
 		}
 
-		queue.Listen.Close()
+		if useQueues {
+			if e := queue.Listen.Close(); e != nil {
+				fmt.Printf("queue.Listen.Close e=%s\n", e.Error())
+			}
+		}
 	}()
 
 	sent, e := daemon.SdNotify(false, "READY=1")

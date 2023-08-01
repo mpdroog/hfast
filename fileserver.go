@@ -6,6 +6,8 @@
 // Diff compared to original:
 // - Directory listing always returns forbidden
 // - Reject requests containig dot (i.e. .git .htaccess etc..)
+// - Static assets (.gif .jpg etc) automatically get Cache-Control header
+// - If file.gz or file.bz exists serve that as file
 //
 // HTTP file system http.Request handler
 
@@ -199,10 +201,10 @@ func serveContent(w http.ResponseWriter, r *http.Request, name string, modtime t
 	}
 
 	if strings.HasSuffix(r.URL.Path, ".css") ||
-	   strings.HasSuffix(r.URL.Path, ".js") ||
-	   strings.HasSuffix(r.URL.Path, ".png") ||
-	   strings.HasSuffix(r.URL.Path, ".gif") ||
-	   strings.HasSuffix(r.URL.Path, ".jpg") {
+		strings.HasSuffix(r.URL.Path, ".js") ||
+		strings.HasSuffix(r.URL.Path, ".png") ||
+		strings.HasSuffix(r.URL.Path, ".gif") ||
+		strings.HasSuffix(r.URL.Path, ".jpg") {
 		// Force browser to cache this one month
 		w.Header().Set("Cache-Control", "public,max-age=2678400")
 	}
@@ -792,7 +794,7 @@ type fileHandler struct {
 // To use the operating system's file system implementation,
 // use http.Dir:
 //
-//     http.Handle("/", http.FileServer(http.Dir("/tmp")))
+//	http.Handle("/", http.FileServer(http.Dir("/tmp")))
 //
 // As a special case, the returned file server redirects any http.Request
 // ending in "/index.html" to the same path, without the final

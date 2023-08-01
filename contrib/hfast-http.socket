@@ -1,10 +1,10 @@
 [Unit]
-Description=HFast Secure Socket
+Description=HFast Unsecure Socket
 
 [Socket]
-ListenStream = 443
+ListenStream = 80
 BindIPv6Only = both
-FileDescriptorName = https
+FileDescriptorName = http
 Service=hfast.service
 
 [Install]

@@ -1,24 +1,23 @@
 HFast
 -------------
-HTTPS-Server with convention over config, favoring security over convenience.
+HTTPS-Server serving PHP (FPM) with convention over config.
 
-License: Closed-source
-Licensed to: David Tie - MoneyFactory
+> Use of this source code is governed by a BSD-style license that can be found in the LICENSE file.
 
 Why?
 - Few to no configuration
  So bye bye to those hours wasting on setting
  up PHP-FCGI, ratelimiting etc...
-- HTTP/2 by default with HTTP/2 Push
-- TLS by default, no config! (LetsEncrypt)
-- Ratelimit by default on PHP
+- HTTP/2 and IPv4+IPv6 by default
+- TLS by default, zero config! (LetsEncrypt)
+- Ratelimit by default on PHP-backend
 - Proper caching/security headers everywhere
-- base64 auth protected /admin to put sensitive stuff behind.
+- base64 auth protected /admin to put sensitive stuff behind
 - Native support for pre-optimized content. Let Brotli/Zopfli pre-compress assets
  to `.br`/`.gz` and HFast will serve them
 - Accesslog as JSON for easy parsing
-- Dynamic queues to easily queue data to the site without
- worrying about losing data on bugs in your code
+- Dynamic queues (`/queue/<chan>`) to easily queue data to the site without
+ worrying about losing data on bugs in your code (faster code building!)
 
 How?
 - You need to place files in the pre-defined project structure
@@ -48,7 +47,7 @@ type Overrides struct {
 	Admin           map[string]string // Admin user+pass for backend
 	DevMode         bool // Protect whole site with Authlist(IP) or Admin user+pass
 	Authlist        map[string]bool // Whitelist with IP=>true, Blacklist with IP=>false (works only with DevMode or /admin)
-	SiteType        string // "" = default (all rules on), "amp" = Google AMP site, "weak" = Site without CSP
+	SiteType        string // "" = default (all rules on), "weak" = Site without CSP, "indexphp" = Site with index.php as central file
 }
 ```
 
