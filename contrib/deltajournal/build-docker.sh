@@ -1,6 +1,5 @@
 #!/bin/bash
 # https://github.com/docker-library/docs/tree/master/golang
-# OLD docker run --rm -v "$PWD":/usr/src/deltajournal -w /usr/src/deltajournal golang:1.11 bash -c "
 set -euo pipefail
 IFS=$'\n\t'
 
