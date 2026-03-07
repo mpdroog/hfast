@@ -41,8 +41,9 @@ ReadOnlyDirectories=/var/www
 ReadWritePaths=/var/log /var/lib/hfast/certs
 
 # Restrict networking further
-IPAddressDeny=any
-IPAddressAllow=localhost
+# this will break LetsEncrypt
+# IPAddressDeny=any
+# IPAddressAllow=localhost
 
 # Restrict realtime features
 RestrictRealtime=true
