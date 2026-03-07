@@ -217,8 +217,14 @@ func main() {
 	}
 	domains = append(domains, wwwDomains...)
 
+	// Ensure secure certificate directory exists with restrictive permissions
+	certDir := "/var/lib/hfast/certs"
+	if err := os.MkdirAll(certDir, 0700); err != nil {
+		panic(fmt.Sprintf("Failed to create cert directory %s: %s", certDir, err))
+	}
+
 	m := &autocert.Manager{
-		Cache:      autocert.DirCache("/tmp/certs"),
+		Cache:      autocert.DirCache(certDir),
 		Prompt:     autocert.AcceptTOS,
 		HostPolicy: autocert.HostWhitelist(domains...),
 	}
