@@ -12,21 +12,60 @@ Restart=on-failure
 StandardOutput=journal
 StandardError=journal
 
-ExecStart=/var/www/hfast
+ExecStart=/etc/hfast/hfast
 User=www-data
 Group=www-data
 
-# Strip off all privileges
-CapabilityBoundingSet=CAP_NET_BIND_SERVICE
-AmbientCapabilities=CAP_NET_BIND_SERVICE
 NoNewPrivileges=true
+# HTTP(80/443)
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 
-# Rigid filesystem protection
-ProtectSystem=full
+# Filesystem restrictions
+ProtectSystem=strict
 ProtectHome=true
+PrivateTmp=true
 PrivateDevices=true
+ProtectControlGroups=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectKernelLogs=true
+ProtectClock=true
+ProtectHostname=true
+
+# Remove ability to see other processes
+ProcSubset=pid
+ProtectProc=invisible
+
+# Restrict writable paths
 ReadOnlyDirectories=/var/www
+ReadWritePaths=/var/log
+
+# Restrict networking further
+IPAddressDeny=any
+IPAddressAllow=localhost
+
+# Restrict realtime features
+RestrictRealtime=true
+
+# Restrict namespaces
+RestrictNamespaces=true
+
+# Lock personality (prevents ABI changes)
+LockPersonality=true
+
+# Disable ptrace
+RestrictSUIDSGID=true
+
+# System call filtering
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+# Remove environment risks
+RemoveIPC=true
+PrivateUsers=true
+ProtectKernelLogs=true
+MemoryDenyWriteExecute=true
 
 # CGroup ruling
 MemoryLimit=512M

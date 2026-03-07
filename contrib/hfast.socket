@@ -1,11 +1,12 @@
 [Unit]
-Description=HFast Secure Socket
+Description=HTTPd Fast Socket
 
 [Socket]
-ListenStream = 443
-BindIPv6Only = both
-FileDescriptorName = https
-Service=hfast.service
+ListenStream=80
+FileDescriptorName=http
+
+ListenStream=443
+FileDescriptorName=https
 
 [Install]
-WantedBy = sockets.target
+WantedBy=sockets.target
