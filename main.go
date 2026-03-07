@@ -47,15 +47,15 @@ func main() {
 				panic(e)
 			}
 			fmt.Printf("Listeners=%+v\n", activated)
-			for name, addr := range activated {
-				if name == "http" {
-					// TODO: Lazy 0 as we assume only 1 listener..
-					listeners["HTTP"] = limit(addr[0])
-				} else if name == "https" {
-					// TODO: Lazy 0 as we assume only 1 listener..
-					listeners["HTTPS"] = limit(addr[0])
-				} else {
-					panic("Unsupported listener-addr=" + addr[0].Addr().String())
+			for name, group := range activated {
+				for _, l := range group {
+					if name == "http" {
+						listeners["HTTP"] = limit(l)
+					} else if name == "https" {
+						listeners["HTTPS"] = limit(l)
+					} else {
+						panic("Unsupported listener-addr=" + l.Addr().String())
+					}
 				}
 			}
 		}
@@ -83,7 +83,7 @@ func main() {
 		panic(e)
 	}
 
-	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_WRONLY, 0600)
+	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
 		panic(err)
 	}
