@@ -20,8 +20,12 @@ const (
 	xssProtectionValue  = "1; mode=block"
 	cspHeader           = "Content-Security-Policy"
 
-	featurePolicyHeader = "Feature-Policy"
-	featurePolicyValue  = "vibrate 'none'; geolocation 'none'; camera 'none'; document-domain 'none'; microphone 'none'"
+	// Permissions-Policy replaces the deprecated Feature-Policy header
+	permissionsPolicyHeader = "Permissions-Policy"
+	permissionsPolicyValue  = "geolocation=(), camera=(), microphone=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()"
+
+	referrerPolicyHeader = "Referrer-Policy"
+	referrerPolicyValue  = "strict-origin-when-cross-origin"
 )
 
 func sec(domains []string, appMode string) map[string]string {
@@ -31,7 +35,8 @@ func sec(domains []string, appMode string) map[string]string {
 	responseHeader[frameOptionsHeader] = frameOptionsValue
 	responseHeader[contentTypeHeader] = contentTypeValue
 	responseHeader[xssProtectionHeader] = xssProtectionValue
-	responseHeader[featurePolicyHeader] = featurePolicyValue
+	responseHeader[permissionsPolicyHeader] = permissionsPolicyValue
+	responseHeader[referrerPolicyHeader] = referrerPolicyValue
 	if appMode == "" {
 		responseHeader[cspHeader] = fmt.Sprintf("default-src 'self' %s", strings.Join(domains, " "))
 	}
