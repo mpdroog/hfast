@@ -178,13 +178,12 @@ func main() {
 
 		if override.Pprof {
 			if len(override.Admin) > 0 || len(override.Authlist) > 0 {
-				// Activate pprof on admin backend
-				// TODO: no base auth in front of it?
-				mux.HandleFunc("/debug/pprof/", pprof.Index)
-				mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-				mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-				mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-				mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+				// Activate pprof on admin backend with authentication
+				mux.Handle("/debug/pprof/", handlers.BasicAuth(http.HandlerFunc(pprof.Index), "Backend", override.Admin, override.Authlist))
+				mux.Handle("/debug/pprof/cmdline", handlers.BasicAuth(http.HandlerFunc(pprof.Cmdline), "Backend", override.Admin, override.Authlist))
+				mux.Handle("/debug/pprof/profile", handlers.BasicAuth(http.HandlerFunc(pprof.Profile), "Backend", override.Admin, override.Authlist))
+				mux.Handle("/debug/pprof/symbol", handlers.BasicAuth(http.HandlerFunc(pprof.Symbol), "Backend", override.Admin, override.Authlist))
+				mux.Handle("/debug/pprof/trace", handlers.BasicAuth(http.HandlerFunc(pprof.Trace), "Backend", override.Admin, override.Authlist))
 			} else {
 				panic("Cannot enable pprof when admin-mode not enabled")
 			}
