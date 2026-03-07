@@ -21,7 +21,7 @@ func getDomains() ([]string, error) {
 	for _, file := range fileInfo {
 		if file.IsDir() {
 			if strings.ToLower(file.Name()) != file.Name() {
-				return nil, fmt.Errorf(config.Webdir + file.Name() + " not lowercase!")
+				return nil, fmt.Errorf("%s%s not lowercase!", config.Webdir, file.Name())
 			}
 			out = append(out, file.Name())
 		}

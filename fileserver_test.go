@@ -64,7 +64,7 @@ func TestIndex(t *testing.T) {
 		log.Fatal(e)
 	}
 	if string(body) != "Action prohibited.\n" {
-		log.Printf("Err, prohibit-msg not shows, body=" + string(body))
+		log.Printf("Err, prohibit-msg not shows, body=%s", string(body))
 	}
 }
 
@@ -82,7 +82,7 @@ func TestDotPrefixed(t *testing.T) {
 		log.Fatal(e)
 	}
 	if string(body) != "Action prohibited.\n" {
-		log.Printf("Err, prohibit-msg not shows, body=" + string(body))
+		log.Printf("Err, prohibit-msg not shows, body=%s", string(body))
 	}
 }
 
@@ -100,7 +100,7 @@ func TestRegular(t *testing.T) {
 		log.Fatal(e)
 	}
 	if string(body) != "Works!" {
-		log.Printf("Err, file not returned, body=" + string(body))
+		log.Printf("Err, file not returned, body=%s", string(body))
 	}
 }
 
@@ -118,7 +118,7 @@ func TestDotDir(t *testing.T) {
 		log.Fatal(e)
 	}
 	if string(body) != "Action prohibited.\n" {
-		log.Printf("Err, prohibit-msg not shows, body=" + string(body))
+		log.Printf("Err, prohibit-msg not shows, body=%s", string(body))
 	}
 }
 
@@ -136,7 +136,7 @@ func TestDir(t *testing.T) {
 		log.Fatal(e)
 	}
 	if string(body) != "Works!" {
-		log.Printf("Err, file not returned, body=" + string(body))
+		log.Printf("Err, file not returned, body=%s", string(body))
 	}
 }
 
@@ -154,7 +154,7 @@ func TestPHP(t *testing.T) {
 		log.Fatal(e)
 	}
 	if string(body) != "Action prohibited.\n" {
-		log.Printf("Err, prohibit-msg not shows, body=" + string(body))
+		log.Printf("Err, prohibit-msg not shows, body=%s", string(body))
 	}
 }
 

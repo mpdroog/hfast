@@ -242,7 +242,7 @@ func main() {
 
 		go func() {
 			if e := fn(); e != nil {
-				fmt.Printf("queue.Serve e=" + e.Error())
+				fmt.Printf("queue.Serve e=%s\n", e.Error())
 			}
 			wg.Done()
 		}()
