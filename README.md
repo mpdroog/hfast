@@ -90,10 +90,10 @@ When content hasn't changed, HFast returns `304 Not Modified` instead of the ful
 
 **URL Versioning (Cache Busting)**
 
-Static assets support version markers in the filename pattern `asset.vXXXXXX.ext`:
+Static assets support version markers in the URL pattern `asset.vXXXXXX.ext`:
 ```
-style.v123456.css  →  served as style.css
-app.v789.js        →  served as app.js
+style.v123456.css  →  server reads style.css
+app.v789.js        →  server reads app.js
 ```
 Change the version number in your HTML to bust browser caches without renaming the physical file.
 
@@ -115,7 +115,7 @@ Full RFC 7233 support for partial content:
 - Useful for resumable downloads and video seeking
 
 Systemd?
-Supported, see contrib dir for an example config to use.
+Used by default, see contrib dir for an example config to use.
 ```
 vi /etc/systemd/system/hfast.service
 vi /etc/systemd/system/hfast.socket
@@ -125,6 +125,7 @@ systemctl enable --now hfast.socket
 
 override.toml
 Place this file in your site root (e.g., `/var/www/example.com/override.toml`) to customize behavior per site.
+FYI. This file is only read on `systemctl restart hfast`
 
 | Setting | Type | Description |
 |---------|------|-------------|
@@ -171,8 +172,5 @@ type Msg struct {
 	Referer string
 }
 ```
-FYI. Example that reads the logs findable in `contrib/logparser`.
-
-Thanks to:
-* https://github.com/coreos/go-systemd/tree/master/examples/activation/httpserver
+See [contrib/logparser](contrib/logparser) for a tool to parse these logs.
 
