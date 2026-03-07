@@ -39,22 +39,22 @@ func TestProxy(t *testing.T) {
 	// Temp server
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if url := req.URL.String(); url != "/LP_TA/index.cfm?CTP=AF%5FTA%2CTSYqLzdTL1MtUFglIFEoJzcsTFwuM1ohNDEqR0E%2BW0YlSCgyNEdMSD4nWz46IFkiKE4gR0dGUTU4USs1SQpNSCktQ1IqUjI4LlxTTDBQNF9LOzJIWkAqLjs6IUc%2BLEpDOlg2QyhOI0lQVVBeSlY1XFBNTzdQV0EtOldMCjJdTEkmWFxJMUc9Nyc6WFNeW1xASlJPUyIK&FN=test" {
-			t.Errorf("URL malformed during forwarding, received=" + url)
+			t.Errorf("URL malformed during forwarding, received=%s", url)
 		}
 		if head := req.Header.Get("Test"); head != "Is Forwarded" {
-			t.Errorf("Header invalid/missing Test-field, received=" + head)
+			t.Errorf("Header invalid/missing Test-field, received=%s", head)
 		}
 		defer req.Body.Close()
 		b := new(bytes.Buffer)
 		if _, e := io.Copy(b, req.Body); e != nil {
-			t.Errorf("io.Copy failed: " + e.Error())
+			t.Errorf("io.Copy failed: %s", e.Error())
 		}
 		if b.String() != "Hello world" {
-			t.Errorf("b.String() mismatch " + b.String())
+			t.Errorf("b.String() mismatch %s", b.String())
 		}
 
 		if _, e := w.Write([]byte("Reply")); e != nil {
-			t.Errorf("w.Write failed: " + e.Error())
+			t.Errorf("w.Write failed: %s", e.Error())
 		}
 	}))
 	defer ts.Close()

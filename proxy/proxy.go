@@ -13,10 +13,45 @@ import (
 	"time"
 )
 
+// blockedProxyHeaders contains headers that should not be forwarded to prevent
+// request smuggling, host header injection, and IP spoofing attacks
+var blockedProxyHeaders = map[string]struct{}{
+	// Hop-by-hop headers (RFC 2616)
+	"Connection":        {},
+	"Keep-Alive":        {},
+	"Transfer-Encoding": {},
+	"Te":                {},
+	"Trailer":           {},
+	"Upgrade":           {},
+	// Host is set based on target
+	"Host": {},
+	// Proxy headers - set by HFast, don't allow client spoofing
+	"X-Forwarded-For":   {},
+	"X-Forwarded-Host":  {},
+	"X-Forwarded-Proto": {},
+	"X-Forwarded-Port":  {},
+	"X-Real-Ip":         {},
+	"X-Real-Port":       {},
+	"Forwarded":         {}, // RFC 7239
+	"X-Hfast":           {}, // Our own header
+}
+
+// copySafeHeaders copies all headers except blocked ones
+func copySafeHeaders(dst, src http.Header) {
+	for name, values := range src {
+		if _, blocked := blockedProxyHeaders[name]; !blocked {
+			for _, v := range values {
+				dst.Add(name, v)
+			}
+		}
+	}
+}
+
 func Proxy(to string) (http.HandlerFunc, error) {
 	if !strings.HasPrefix(to, "http://") && !strings.HasPrefix(to, "https://") {
-		return nil, fmt.Errorf("to(%s) does not begin with http:// nor https://")
+		return nil, fmt.Errorf("to(%s) does not begin with http:// nor https://", to)
 	}
+
 	var netTransport = &http.Transport{
 		Dial: (&net.Dialer{
 			Timeout: 5 * time.Second,
@@ -40,17 +75,22 @@ func Proxy(to string) (http.HandlerFunc, error) {
 			return
 		}
 
-		req.Header.Set("X-HFast", "0.1.0")
-		req.Header.Set("X-Forwarded-For", ip)
 		dest := to + req.URL.String()
+
 		proxReq, e := http.NewRequest(req.Method, dest, req.Body)
 		if e != nil {
 			logger.Printf("newRequest(%s) %s\n", dest, e.Error())
 			PrettyError(w)
 			return
 		}
-		utils.CopyHeaders(proxReq.Header, req.Header)
-		proxReq.Host = req.Host
+
+		// Copy headers except hop-by-hop headers that could cause issues
+		copySafeHeaders(proxReq.Header, req.Header)
+
+		// Set proxy headers
+		proxReq.Header.Set("X-HFast", "0.1.0")
+		proxReq.Header.Set("X-Forwarded-For", ip)
+		proxReq.Header.Set("X-Forwarded-Proto", "https")
 
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 		defer cancel()
