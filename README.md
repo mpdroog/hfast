@@ -9,7 +9,7 @@ HFast eliminates the tedious setup of PHP-FPM, Nginx, rate limiting, and TLS cer
 
 **Zero configuration defaults:**
 - Automatic TLS via LetsEncrypt
-- HTTP/2 with IPv4 and IPv6
+- HTTP/2 and HTTP/3 (QUIC) with IPv4 and IPv6
 - Security headers and caching out of the box
 - Rate limiting on PHP endpoints (30 req/min per IP)
 
@@ -113,6 +113,21 @@ Full RFC 7233 support for partial content:
 - `Accept-Ranges: bytes` header on all static files
 - Single and multi-part byte-range requests
 - Useful for resumable downloads and video seeking
+
+Firewall
+-------------
+Open the following ports:
+| Port | Protocol | Purpose |
+|------|----------|---------|
+| 80 | TCP | HTTP (ACME challenges, redirects) |
+| 443 | TCP | HTTPS / HTTP/2 |
+| 443 | UDP | HTTP/3 (QUIC) |
+
+For optimal HTTP/3 performance, increase UDP buffer sizes:
+```
+sysctl -w net.core.rmem_max=7500000
+sysctl -w net.core.wmem_max=7500000
+```
 
 Systemd?
 Used by default, see contrib dir for an example config to use.

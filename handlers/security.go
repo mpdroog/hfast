@@ -26,6 +26,10 @@ const (
 
 	referrerPolicyHeader = "Referrer-Policy"
 	referrerPolicyValue  = "strict-origin-when-cross-origin"
+
+	// Alt-Svc header to advertise HTTP/3 support
+	altSvcHeader = "Alt-Svc"
+	altSvcValue  = `h3=":443"; ma=86400`
 )
 
 func sec(domains []string, appMode string) map[string]string {
@@ -37,6 +41,7 @@ func sec(domains []string, appMode string) map[string]string {
 	responseHeader[xssProtectionHeader] = xssProtectionValue
 	responseHeader[permissionsPolicyHeader] = permissionsPolicyValue
 	responseHeader[referrerPolicyHeader] = referrerPolicyValue
+	responseHeader[altSvcHeader] = altSvcValue
 	if appMode == "" {
 		responseHeader[cspHeader] = fmt.Sprintf("default-src 'self' %s", strings.Join(domains, " "))
 	}

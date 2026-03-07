@@ -3,10 +3,8 @@ Description=HTTPd Fast Socket
 
 [Socket]
 ListenStream=80
-FileDescriptorName=http
-
 ListenStream=443
-FileDescriptorName=https
+ListenDatagram=443
 
 [Install]
 WantedBy=sockets.target

@@ -51,12 +51,14 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/pressly/chi v4.1.2+incompatible // indirect
 	github.com/prometheus/client_model v0.0.0-20190812154241-14fe0d1b01d4 // indirect
+	github.com/quic-go/qpack v0.6.0 // indirect
+	github.com/quic-go/quic-go v0.59.0 // indirect
 	github.com/segmentio/fasthash v1.0.3 // indirect
 	github.com/sirupsen/logrus v1.9.4 // indirect
 	github.com/smartystreets/assertions v1.1.1 // indirect
 	github.com/smartystreets/goconvey v1.6.4 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
-	github.com/stretchr/testify v1.10.0 // indirect
+	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/vulcand/predicate v1.2.0 // indirect
 	github.com/yuin/goldmark v1.7.13 // indirect
 	golang.org/x/exp v0.0.0-20191030013958-a1ab85dbe136 // indirect
@@ -78,7 +80,7 @@ require (
 	google.golang.org/appengine v1.4.0 // indirect
 	google.golang.org/genproto v0.0.0-20190819201941-24fa4b261c55 // indirect
 	google.golang.org/grpc v1.27.1 // indirect
-	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
+	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/ini.v1 v1.38.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	honnef.co/go/tools v0.0.0-20190523083050-ea95bdfd59fc // indirect

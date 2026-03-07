@@ -14,6 +14,7 @@ import (
 	"github.com/mpdroog/hfast/queue"
 	"github.com/mpdroog/ratelimit"
 	"github.com/mpdroog/ratelimit/memory"
+	"github.com/quic-go/quic-go/http3"
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/text/language"
 	"net"
@@ -40,23 +41,33 @@ func main() {
 
 	// Socket/self activation
 	listeners := make(map[string]net.Listener)
+	var http3Conn net.PacketConn
 	{
 		if !skipsysd {
-			activated, e := activation.ListenersWithNames()
-			if e != nil {
-				panic(e)
-			}
-			fmt.Printf("Listeners=%+v\n", activated)
-			for name, group := range activated {
-				for _, l := range group {
-					if name == "http" {
+			// Get all file descriptors from systemd (without clearing env)
+			files := activation.Files(false)
+			fmt.Printf("Systemd FDs=%d\n", len(files))
+
+			for _, f := range files {
+				// Try as TCP listener first
+				if l, err := net.FileListener(f); err == nil {
+					addr := l.Addr().String()
+					if strings.HasSuffix(addr, ":80") {
 						listeners["HTTP"] = limit(l)
-					} else if name == "https" {
+						fmt.Printf("  HTTP=%s\n", addr)
+					} else if strings.HasSuffix(addr, ":443") {
 						listeners["HTTPS"] = limit(l)
+						fmt.Printf("  HTTPS=%s\n", addr)
 					} else {
-						panic("Unsupported listener-addr=" + l.Addr().String())
+						fmt.Printf("  Unknown TCP: %s\n", addr)
+						l.Close()
 					}
+				} else if pc, err := net.FilePacketConn(f); err == nil {
+					// It's a UDP socket
+					http3Conn = pc
+					fmt.Printf("  HTTP3=%s\n", pc.LocalAddr())
 				}
+				f.Close()
 			}
 		}
 	}
@@ -231,6 +242,7 @@ func main() {
 	var (
 		httpServer  *http.Server
 		httpsServer *http.Server
+		http3Server *http3.Server
 	)
 
 	if useQueues {
@@ -291,6 +303,31 @@ func main() {
 		}()
 	}
 
+	// HTTP/3 (QUIC) on UDP :443
+	{
+		wg.Add(1)
+		go func() {
+			s := &http3.Server{
+				Addr:      ":443",
+				TLSConfig: m.TLSConfig(),
+				Handler:   RecoverWrap(handlers.Vhost()),
+			}
+			http3Server = s
+			var e error
+			if http3Conn != nil {
+				// Use systemd-provided UDP socket
+				e = s.Serve(http3Conn)
+			} else {
+				// Create our own UDP listener
+				e = s.ListenAndServe()
+			}
+			if e != nil && e != http.ErrServerClosed {
+				fmt.Printf("http3 server e=%s\n", e.Error())
+			}
+			wg.Done()
+		}()
+	}
+
 	// Below routines that quit with our custom channel
 	quit := make(chan os.Signal, 1)
 
@@ -313,6 +350,11 @@ func main() {
 			httpsServer.SetKeepAlivesEnabled(false)
 			if e := httpsServer.Shutdown(ctx); e != nil {
 				panic(e)
+			}
+		}
+		if http3Server != nil {
+			if e := http3Server.Close(); e != nil {
+				fmt.Printf("http3Server.Close e=%s\n", e.Error())
 			}
 		}
 
