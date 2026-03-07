@@ -38,7 +38,7 @@ ProtectProc=invisible
 
 # Restrict writable paths
 ReadOnlyDirectories=/var/www
-ReadWritePaths=/var/log
+ReadWritePaths=/var/log /var/lib/hfast/certs
 
 # Restrict networking further
 IPAddressDeny=any
