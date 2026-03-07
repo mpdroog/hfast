@@ -16,8 +16,10 @@
 package queue
 
 import (
-	"crypto/md5"
+	"crypto/hmac"
+	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"github.com/boltdb/bolt"
 	"github.com/mpdroog/hfast/config"
@@ -92,12 +94,19 @@ func Close() error {
 	return nil
 }
 
+// MaxQueueBodySize is the maximum allowed request body size for queued jobs (10MB)
+const MaxQueueBodySize = 10 * 1024 * 1024
+
 // URL=/v1/url.json
 func Handle() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !isLoaded {
 			panic("DevErr: Init never called")
 		}
+
+		// Limit request body size to prevent memory exhaustion
+		r.Body = http.MaxBytesReader(w, r.Body, MaxQueueBodySize)
+
 		toks := strings.SplitN(r.URL.Path, "/", 4)
 		if len(toks) != 4 {
 			w.WriteHeader(400)
@@ -129,7 +138,11 @@ func Handle() http.Handler {
 		if secret == "" {
 			panic("Missing secret-key")
 		}
-		if hash != fmt.Sprintf("%x", md5.Sum([]byte(secret+channel))) {
+		// Use HMAC-SHA256 for secure authentication
+		mac := hmac.New(sha256.New, []byte(secret))
+		mac.Write([]byte(channel))
+		expectedHash := hex.EncodeToString(mac.Sum(nil))
+		if !hmac.Equal([]byte(hash), []byte(expectedHash)) {
 			w.WriteHeader(403)
 			w.Write([]byte("Invalid hash.\n"))
 			return
