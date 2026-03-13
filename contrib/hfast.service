@@ -2,6 +2,8 @@
 Description=HTTPd Fast
 Requires=network.target
 After=network.target
+# PartOf ensures service restarts when socket restarts.
+# Always restart via: systemctl restart hfast.socket
 PartOf=hfast.socket
 
 [Service]

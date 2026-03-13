@@ -138,6 +138,13 @@ systemctl daemon-reload
 systemctl enable --now hfast.socket
 ```
 
+**Managing the service:**
+```
+systemctl restart hfast.socket   # Restart (always use .socket, not .service)
+systemctl status hfast           # Check service status
+journalctl -u hfast -f           # Follow logs
+```
+
 override.toml
 Place this file in your site root (e.g., `/var/www/example.com/override.toml`) to customize behavior per site.
 FYI. This file is only read on `systemctl restart hfast`
