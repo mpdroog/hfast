@@ -23,6 +23,6 @@ func NewHandler(docroot, network, address string) http.Handler {
 	// route all requests to a single php file
 	return gofast.NewHandler(
 		gofast.NewFileEndpoint(docroot)(gofast.BasicSession),
-		gofast.SimpleClientFactory(connFactory, 0),
+		gofast.SimpleClientFactory(connFactory),
 	)
 }
