@@ -91,6 +91,7 @@ func Proxy(to string) (http.HandlerFunc, error) {
 		proxReq.Header.Set("X-HFast", "0.1.0")
 		proxReq.Header.Set("X-Forwarded-For", ip)
 		proxReq.Header.Set("X-Forwarded-Proto", "https")
+		proxReq.Header.Set("X-Forwarded-Host", req.Host)
 
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 		defer cancel()
