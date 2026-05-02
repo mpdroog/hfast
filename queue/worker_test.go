@@ -2,7 +2,9 @@ package queue
 
 import (
 	"bufio"
-	"crypto/md5"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"github.com/mpdroog/hfast/config"
 	"io"
@@ -42,10 +44,13 @@ func TestWork(t *testing.T) {
 	defer Listen.Close()
 
 	// Write task to queue
-	// /queue/<channel>/MD5(<secretkey>+<channel>)
-	secret := []byte("prjkey" + "test")
-	hash := fmt.Sprintf("%x", md5.Sum(secret))
+	// /queue/<channel>/HMAC-SHA256(<secretkey>, <channel>)
+	mac := hmac.New(sha256.New, []byte("prjkey"))
+	mac.Write([]byte("test"))
+	hash := hex.EncodeToString(mac.Sum(nil))
 	req := httptest.NewRequest("POST", "/queue/test/"+hash, nil)
+	req.Host = "test.com"
+	req.Header.Set("Origin", "https://test.com")
 	req.Header.Set("X-Domain", "test.com")
 	req.Header.Set("X-Secretkey", "prjkey")
 	res := httptest.NewRecorder()

@@ -15,7 +15,7 @@ import (
 func fs(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotFound)
 	if _, e := w.Write([]byte("Regular page handle, you forgot to call /action!")); e != nil {
-		fmt.Printf("w.Write e=" + e.Error())
+		fmt.Printf("w.Write e=%s\n", e.Error())
 	}
 }
 
