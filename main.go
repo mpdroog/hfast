@@ -128,7 +128,7 @@ func main() {
 			fs := FileServer(Dir(fmt.Sprintf(config.Webdir+"/%s/pub", domain)))
 			mux := &http.ServeMux{}
 			mux.Handle("/", fs)
-			config.Muxs[domain] = handlers.SecureWrapper(handlers.AccessLog(mux))
+			config.Muxs[domain] = handlers.CSRF(handlers.SecureWrapper(handlers.AccessLog(mux)))
 			config.Overrides[domain] = override
 			continue
 		}
@@ -150,7 +150,7 @@ func main() {
 				mux.Handle("/", handlers.AccessLog(fn))
 			}
 			config.Overrides[domain] = override
-			config.Muxs[domain] = handlers.SecureWrapper(mux)
+			config.Muxs[domain] = handlers.CSRF(handlers.SecureWrapper(mux))
 			continue
 		}
 
@@ -223,7 +223,7 @@ func main() {
 		mux.Handle("/", base)
 
 		config.Overrides[domain] = override
-		config.Muxs[domain] = handlers.SecureWrapper(mux)
+		config.Muxs[domain] = handlers.CSRF(handlers.SecureWrapper(mux))
 	}
 	domains = append(domains, wwwDomains...)
 

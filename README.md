@@ -66,6 +66,15 @@ Permissions-Policy: geolocation=(), camera=(), microphone=(), payment=(), usb=()
 Referrer-Policy: strict-origin-when-cross-origin
 ```
 
+**CSRF Protection**
+
+All state-changing requests (POST, PUT, DELETE, PATCH) are validated against Cross-Site Request Forgery attacks. HFast checks that the `Origin` or `Referer` header matches the request's `Host` header.
+
+- Safe methods (GET, HEAD, OPTIONS) are always allowed
+- State-changing methods require a valid `Origin` or `Referer` header
+- Requests without either header are rejected (strict mode)
+- API clients must send an `Origin` header matching the target domain
+
 Caching
 -------------
 HFast implements RFC 7232/7233 compliant caching with sensible defaults.
