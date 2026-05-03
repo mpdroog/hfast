@@ -177,6 +177,64 @@ func TestVhost_SetsServerHeader(t *testing.T) {
 	}
 }
 
+func TestVhost_HostWithPort(t *testing.T) {
+	// Regression test: Host header may include port (e.g., "example.com:443")
+	// The handler should strip the port and match config keyed by "example.com"
+	muxCalled := false
+	config.Muxs["example.com"] = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		muxCalled = true
+		w.WriteHeader(200)
+	})
+	config.Overrides["example.com"] = config.Override{
+		SecretKey: "test-secret",
+	}
+	defer func() {
+		delete(config.Muxs, "example.com")
+		delete(config.Overrides, "example.com")
+	}()
+
+	handler := Vhost()
+
+	// Request with port should match config without port
+	req := httptest.NewRequest("GET", "https://example.com:443/page", nil)
+	req.Host = "example.com:443"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if !muxCalled {
+		t.Error("Host example.com:443 should match config entry example.com")
+	}
+	if rec.Code != 200 {
+		t.Errorf("Expected 200, got %d", rec.Code)
+	}
+}
+
+func TestVhost_HostWithPortNormalized(t *testing.T) {
+	// Regression test: ensure normalized host (lowercase, no port) is used for lookup
+	muxCalled := false
+	config.Muxs["example.com"] = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		muxCalled = true
+		w.WriteHeader(200)
+	})
+	config.Overrides["example.com"] = config.Override{}
+	defer func() {
+		delete(config.Muxs, "example.com")
+		delete(config.Overrides, "example.com")
+	}()
+
+	handler := Vhost()
+
+	// Mixed case host with port should match lowercase config without port
+	req := httptest.NewRequest("GET", "https://EXAMPLE.COM:443/", nil)
+	req.Host = "EXAMPLE.COM:443"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if !muxCalled {
+		t.Error("Host EXAMPLE.COM:443 should match config entry example.com")
+	}
+}
+
 func TestVhost_MultipleDomains(t *testing.T) {
 	// Setup multiple domains
 	config.Muxs["site1.com"] = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

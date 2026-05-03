@@ -32,6 +32,52 @@ func (b *bufferWriter) WriteHeader(code int) {
 	b.code = code
 }
 
+func TestStripPort(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"example.com", "example.com"},
+		{"example.com:443", "example.com"},
+		{"example.com:8080", "example.com"},
+		{"192.168.1.1:80", "192.168.1.1"},
+		{"localhost:3000", "localhost"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := stripPort(tt.input)
+			if result != tt.expected {
+				t.Errorf("stripPort(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestProxy_XForwardedHostStripsPort(t *testing.T) {
+	var capturedHost string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		capturedHost = req.Header.Get("X-Forwarded-Host")
+		w.WriteHeader(200)
+	}))
+	defer ts.Close()
+
+	fn, err := Proxy("http://" + ts.Listener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Request with port in Host header
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.Host = "example.com:443"
+	rec := httptest.NewRecorder()
+	fn(rec, req)
+
+	if capturedHost != "example.com" {
+		t.Errorf("X-Forwarded-Host should strip port: got %q, want %q", capturedHost, "example.com")
+	}
+}
+
 func TestProxy(t *testing.T) {
 	bw := &bufferWriter{header: make(http.Header), buffer: &bytes.Buffer{}}
 	b := strings.NewReader(`Hello world`)

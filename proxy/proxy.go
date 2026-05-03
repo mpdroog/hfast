@@ -13,6 +13,17 @@ import (
 	"time"
 )
 
+// stripPort removes the port from a host:port string.
+// "example.com:443" -> "example.com"
+// "example.com" -> "example.com"
+func stripPort(hostport string) string {
+	host, _, err := net.SplitHostPort(hostport)
+	if err != nil {
+		return hostport // no port present
+	}
+	return host
+}
+
 // blockedProxyHeaders contains headers that should not be forwarded to prevent
 // request smuggling, host header injection, and IP spoofing attacks
 var blockedProxyHeaders = map[string]struct{}{
@@ -91,7 +102,7 @@ func Proxy(to string) (http.HandlerFunc, error) {
 		proxReq.Header.Set("X-HFast", "0.1.0")
 		proxReq.Header.Set("X-Forwarded-For", ip)
 		proxReq.Header.Set("X-Forwarded-Proto", "https")
-		proxReq.Header.Set("X-Forwarded-Host", req.Host)
+		proxReq.Header.Set("X-Forwarded-Host", stripPort(req.Host))
 
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 		defer cancel()

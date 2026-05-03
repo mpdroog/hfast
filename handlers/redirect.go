@@ -17,8 +17,13 @@ func stripPort(hostport string) string {
 }
 func normalizeHost(raw string) (host string, iswww bool) {
 	host = strings.ToLower(raw)
-	iswww = strings.HasPrefix(host, "www.")
 
+	// Strip port if present (e.g., "example.com:443" -> "example.com")
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+
+	iswww = strings.HasPrefix(host, "www.")
 	if iswww {
 		host = host[len("www."):]
 	}

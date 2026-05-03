@@ -17,14 +17,14 @@ func Vhost() http.HandlerFunc {
 			return
 		}
 
-		m, ok := config.Muxs[r.Host]
+		m, ok := config.Muxs[host]
 		if !ok {
-			logger.Printf("Unmatched host: %s", r.Host)
+			logger.Printf("Unmatched host: %s", host)
 			w.Write([]byte("ERR: No such site."))
 			return
 		}
 
-		cfg, ok := config.Overrides[r.Host]
+		cfg, ok := config.Overrides[host]
 		if !ok {
 			panic("Host set in muxs but not on overrides?")
 		}

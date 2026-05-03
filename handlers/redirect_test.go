@@ -19,6 +19,11 @@ func TestNormalizeHost(t *testing.T) {
 		{"Example.Com", "example.com", false},
 		{"www.sub.example.com", "sub.example.com", true},
 		{"sub.example.com", "sub.example.com", false},
+		// Port stripping tests
+		{"example.com:443", "example.com", false},
+		{"example.com:8080", "example.com", false},
+		{"www.example.com:443", "example.com", true},
+		{"WWW.EXAMPLE.COM:443", "example.com", true},
 	}
 
 	for _, tt := range tests {
